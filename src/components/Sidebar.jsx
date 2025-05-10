@@ -45,7 +45,7 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }) {
         {isMdUp && (
           <Box
             component="img"
-            src="/assets/new_logo_small.svg"
+            src="/simple-logo.png"
             alt="Logo"
             sx={{ height: 32 }}
           />

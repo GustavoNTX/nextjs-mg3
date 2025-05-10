@@ -49,7 +49,7 @@ export default function SidebarDesktop() {
       <Toolbar sx={{ justifyContent: "center" }}>
         <Box
           component="img"
-          src="/assets/images/new_logo_small.svg"
+          src="/simple-logo.png"
           alt="Logo"
           sx={{ height: 40 }}
         />

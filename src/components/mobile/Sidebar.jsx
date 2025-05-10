@@ -9,12 +9,12 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
 } from "@mui/material";
 import {
   Description as DescriptionIcon,
   BarChart as BarChartIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
 } from "@mui/icons-material";
 
 const drawerWidth = 240;
@@ -22,13 +22,21 @@ const drawerWidth = 240;
 export default function SidebarMobile({ mobileOpen, handleDrawerToggle }) {
   const drawerContent = (
     <>
-      <Toolbar />
+
+      <Toolbar sx={{ justifyContent: "center" }}>
+        <Box
+          component="img"
+          src="/simple-logo.png"
+          alt="Logo"
+          sx={{ height: 40 }}
+        />
+      </Toolbar>
       <Divider />
       <List>
         {[
           { icon: <DescriptionIcon />, text: "Lista de Ativos" },
-          { icon: <BarChartIcon />,   text: "Relatórios"      },
-          { icon: <SettingsIcon />,   text: "Configurações"   },
+          { icon: <BarChartIcon />, text: "Relatórios" },
+          { icon: <SettingsIcon />, text: "Configurações" },
         ].map(({ icon, text }) => (
           <ListItem button key={text} onClick={handleDrawerToggle}>
             <ListItemIcon>{icon}</ListItemIcon>
@@ -48,8 +56,8 @@ export default function SidebarMobile({ mobileOpen, handleDrawerToggle }) {
       sx={{
         "& .MuiDrawer-paper": {
           width: drawerWidth,
-          boxSizing: "border-box"
-        }
+          boxSizing: "border-box",
+        },
       }}
     >
       {drawerContent}
