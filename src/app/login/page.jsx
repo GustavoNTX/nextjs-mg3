@@ -44,7 +44,7 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <Box mb={4}>
-          <img src="/simple-logo.svg" alt="Logo" style={{ width: 100 }} />
+          <img src="/simple-logo.png" alt="Logo" style={{ width: 100 }} />
         </Box>
 
         {/* Inputs */}
