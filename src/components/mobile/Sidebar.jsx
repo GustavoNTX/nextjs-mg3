@@ -22,7 +22,6 @@ const drawerWidth = 240;
 export default function SidebarMobile({ mobileOpen, handleDrawerToggle }) {
   const drawerContent = (
     <>
-
       <Toolbar sx={{ justifyContent: "center" }}>
         <Box
           component="img"

@@ -40,7 +40,7 @@ export default function HeaderDesktop({
         zIndex: theme.zIndex.drawer + 2,
       }}
     >
-      <Toolbar disableGutters sx={{ display: "flex", alignItems: "center" }}>
+      <Toolbar disableGutters sx={{ display: "flex", alignItems: "center" }} position="fixed" color="transparent"   elevation={0}>
         {/* Título centralizado */}
         <Typography
           variant="h5"

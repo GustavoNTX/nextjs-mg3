@@ -16,9 +16,16 @@ import {
   GetApp as GetAppIcon,
 } from "@mui/icons-material";
 import Layout from "@/components/Layout";
+import AddCondominioDialog from "@/components/AddCondominioDialog";
 
 export default function SelecioneOCondominioPage() {
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleSave = (data) => {
+    console.log("Dados do novo condomínio:", data);
+    // TODO: chamar sua API aqui...
+  };
 
   return (
     <Layout>
@@ -53,6 +60,7 @@ export default function SelecioneOCondominioPage() {
           startIcon={<AddIcon />}
           variant="text"
           sx={{ color: "#EA6037", whiteSpace: "nowrap" }}
+          onClick={() => setDialogOpen(true)}
         >
           Adicionar condomínio
         </Button>
@@ -71,6 +79,12 @@ export default function SelecioneOCondominioPage() {
           Não há condomínios para mostrar
         </Typography>
       </Box>
+
+      <AddCondominioDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+      />
     </Layout>
   );
 }
