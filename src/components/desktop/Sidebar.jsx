@@ -8,6 +8,7 @@ import {
   Divider,
   List,
   ListItem,
+  ListItemButton, // 1. Importe o ListItemButton
   ListItemIcon,
   ListItemText,
   useTheme,
@@ -40,19 +41,27 @@ export default function SidebarDesktop() {
           { icon: <BarChartIcon />, text: "Relatórios" },
           { icon: <SettingsIcon />, text: "Configurações" },
         ].map(({ icon, text }) => (
-          <ListItem button key={text}>
-            <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
-              {icon}
-            </ListItemIcon>
-            <ListItemText
-              primary={text}
+          // 2. Altere a estrutura aqui
+          <ListItem key={text} disablePadding>
+            <ListItemButton
               sx={{
-                whiteSpace: "nowrap",
-                opacity: 0, // escondido no estado “minimizado”
-                transition: "opacity .2s",
-                pl: 2,
+                "&:hover .MuiListItemText-root": { opacity: 1 },
+                "&:hover": { width: 240 }, // Mova o hover para o ListItemButton
               }}
-            />
+            >
+              <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
+                {icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={text}
+                sx={{
+                  whiteSpace: "nowrap",
+                  opacity: 0, // escondido no estado “minimizado”
+                  transition: "opacity .2s",
+                  pl: 2,
+                }}
+              />
+            </ListItemButton>
           </ListItem>
         ))}
       </List>
@@ -74,10 +83,9 @@ export default function SidebarDesktop() {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
-          /* Na montagem já fica minimizado; o hover você pode adicionar em desktop: */
+          // O hover agora é controlado pelo ListItemButton
           "&:hover": {
             width: 240,
-            "& .MuiListItemText-root": { opacity: 1 },
           },
         },
       }}

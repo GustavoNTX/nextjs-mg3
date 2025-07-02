@@ -2,8 +2,8 @@
 "use client";
 
 import { useTheme, useMediaQuery } from "@mui/material";
-import DesktopSidebar from "../desktop/Sidebar";
-import MobileSidebar  from "../mobile/Sidebar";
+import DesktopSidebar from "../SidebarDesktop";
+import MobileSidebar  from "../SidebarMobile";
 
 export default function SidebarFacade(props) {
   const theme = useTheme();

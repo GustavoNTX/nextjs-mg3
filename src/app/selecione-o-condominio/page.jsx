@@ -6,11 +6,12 @@ import { Box, Typography, Button, Grid, Stack } from "@mui/material";
 import { Add as AddIcon, GetApp as GetAppIcon } from "@mui/icons-material";
 import Layout from "@/components/Layout";
 import AddCondominioDialog from "@/components/AddCondominioDialog";
-import CondominioCard from "@/components/CondominioCard"; // Importe o novo componente
-import EditCondominioDialog from "@/components/EditCondominioDialog"; // Importe o diálogo de edição
+import CondominioCard from "@/components/CondominioCard";
+import EditCondominioDialog from "@/components/EditCondominioDialog";
 
 // Dados de exemplo (substitua pela sua chamada de API)
 const condominiosMock = [
+  // ...seus dados de exemplo permanecem aqui...
   {
     id: 1,
     name: "Residencial Jardins",
@@ -44,28 +45,18 @@ const condominiosMock = [
 ];
 
 export default function SelecioneOCondominioPage() {
-  const [condominios, setCondominios] = useState(condominiosMock); // Usando os dados de exemplo
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [condominios, setCondominios] = useState(condominiosMock);
+  const [addDialogOpen, setAddDialogOpen] = useState(false); // Estado unificado para o diálogo de adição
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedCondo, setSelectedCondo] = useState(null);
 
-  const handleSave = (data) => {
-    console.log("Dados do novo condomínio:", data);
-    // TODO: Chamar sua API para salvar o novo condomínio
-    // e depois atualizar o estado 'condominios'
-    const newCondominio = { ...data, id: condominios.length + 1 };
-    setCondominios((prev) => [...prev, newCondominio]);
-    setDialogOpen(false);
-  };
-
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false); // Estado para o diálogo de edição
-  const [selectedCondo, setSelectedCondo] = useState(null); // Estado para o condomínio selecionado
-
-  // Abre o diálogo de edição e define o condomínio selecionado
+  // Abre o diálogo de edição com os dados do condomínio
   const handleEdit = (condo) => {
     setSelectedCondo(condo);
     setEditDialogOpen(true);
   };
 
+  // Salva um novo condomínio
   const handleSaveNew = (data) => {
     console.log("Salvando novo condomínio:", data);
     const newCondominio = { ...data, id: condominios.length + 1 };
@@ -73,11 +64,19 @@ export default function SelecioneOCondominioPage() {
     setAddDialogOpen(false);
   };
 
+  // Atualiza um condomínio existente
   const handleSaveEdit = (updatedData) => {
     console.log("Atualizando condomínio:", updatedData);
     setCondominios((prev) =>
       prev.map((c) => (c.id === updatedData.id ? updatedData : c))
     );
+    setEditDialogOpen(false);
+  };
+
+  // <<< MUDANÇA AQUI: Adicionada a função para deletar
+  const handleDelete = (condoId) => {
+    console.log("Excluindo condomínio com ID:", condoId);
+    setCondominios((prev) => prev.filter((c) => c.id !== condoId));
     setEditDialogOpen(false);
   };
 
@@ -94,7 +93,7 @@ export default function SelecioneOCondominioPage() {
         <Button
           startIcon={<AddIcon />}
           variant="contained"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => setAddDialogOpen(true)} // <<< MUDANÇA AQUI: Simplificado
         >
           Adicionar condomínio
         </Button>
@@ -108,7 +107,8 @@ export default function SelecioneOCondominioPage() {
         {condominios.length > 0 ? (
           condominios.map((condominio) => (
             <Grid item key={condominio.id} xs={12} sm={6} md={4}>
-              <CondominioCard {...condominio} />
+              {/* <<< MUDANÇA AQUI: Passando a função onEdit */}
+              <CondominioCard {...condominio} onEdit={handleEdit} />
             </Grid>
           ))
         ) : (
@@ -125,19 +125,23 @@ export default function SelecioneOCondominioPage() {
         )}
       </Grid>
 
+      {/* Diálogo para Adicionar */}
       <AddCondominioDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSave={handleSave}
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        onSave={handleSaveNew}
       />
 
       {/* Diálogo para Editar */}
-      <EditCondominioDialog
-        open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
-        onSave={handleSaveEdit}
-        condominio={selectedCondo}
-      />
+      {selectedCondo && ( // Renderiza o diálogo apenas se houver um condomínio selecionado
+        <EditCondominioDialog
+          open={editDialogOpen}
+          onClose={() => setEditDialogOpen(false)}
+          onSave={handleSaveEdit}
+          onDelete={handleDelete} // <<< MUDANÇA AQUI: Passando a função onDelete
+          condominio={selectedCondo}
+        />
+      )}
     </Layout>
   );
 }

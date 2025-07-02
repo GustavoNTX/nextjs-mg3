@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation'; // <<< MUDANÇA 1: Importar o useRouter
 import {
   Dialog,
   DialogActions,
@@ -38,17 +39,17 @@ function TabPanel(props) {
 }
 
 export default function EditCondominioDialog({ open, onClose, onSave, condominio }) {
+  const router = useRouter(); // <<< MUDANÇA 2: Instanciar o roteador
   const [values, setValues] = useState(condominio || {});
   const [currentTab, setCurrentTab] = useState(0);
 
-  // Efeito para atualizar o estado do formulário quando o condomínio selecionado mudar
   useEffect(() => {
     if (condominio) {
       setValues(condominio);
     }
   }, [condominio]);
 
-  if (!condominio) return null; // Não renderiza nada se não houver um condomínio para editar
+  if (!condominio) return null;
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -63,10 +64,17 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
     onClose();
   };
 
+  // <<< MUDANÇA 3: Criar a função para navegar
+  const handleOpenCronograma = () => {
+    // Se o cronograma for parte do mesmo app, o ideal é usar a rota relativa
+    // router.push('/cronograma');
+    
+    // Para a sua URL específica:
+    router.push('http://192.168.229.130:3001/cronograma');
+  };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      {/* Cabeçalho com Imagem e Título */}
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <img 
@@ -81,7 +89,6 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
         </IconButton>
       </Box>
 
-      {/* Abas de Navegação */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={currentTab} onChange={handleTabChange} aria-label="abas de edição">
           <Tab label="Visão Geral" />
@@ -90,7 +97,6 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
         </Tabs>
       </Box>
 
-      {/* Conteúdo das Abas */}
       <TabPanel value={currentTab} index={0}>
         <Typography variant="h6" gutterBottom>Detalhes do Condomínio</Typography>
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -113,7 +119,12 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
             </Grid>
         </Paper>
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-             <Button variant="contained" endIcon={<ArrowForwardIosIcon />}>
+             {/* <<< MUDANÇA 4: Adicionar o onClick ao botão */}
+             <Button 
+                variant="contained" 
+                endIcon={<ArrowForwardIosIcon />}
+                onClick={handleOpenCronograma}
+             >
                 Abrir Cronograma
             </Button>
             <Button variant="contained" color="secondary" startIcon={<EditIcon />} onClick={handleSaveChanges}>
@@ -129,7 +140,6 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
       <TabPanel value={currentTab} index={2}>
         <Typography>Anotações (Em construção)</Typography>
       </TabPanel>
-
     </Dialog>
   );
 }

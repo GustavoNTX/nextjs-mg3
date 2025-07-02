@@ -8,49 +8,40 @@ import {
   Typography,
   Chip,
   Box,
-  IconButton,
 } from "@mui/material";
-import EditIcon from '@mui/icons-material/Edit'; // Importe o ícone de edição
+import EditIcon from '@mui/icons-material/Edit';
 
-export default function CondominioCard({ id, imageUrl, name, address, type, onEdit  }) {
+// O componente recebe as props individuais e a função onEdit
+export default function CondominioCard({ id, imageUrl, name, address, type, cnpj, onEdit }) {
 
-  // Função placeholder para o clique no botão de editar
   const handleEditClick = (event) => {
-    event.preventDefault(); // Impede que o clique se propague para outros elementos
+    event.preventDefault();
     event.stopPropagation();
-    console.log(`Clicou para editar o condomínio com ID: ${id}`);
-     onEdit(condominio);
-    // Futuramente, aqui você pode abrir o diálogo ou navegar para a página de edição.
-    // Ex: setEditDialogOpen(true);
+    
+    // ✅ Cria o objeto do condomínio a partir das props
+    const condominioData = { id, imageUrl, name, address, type, cnpj };
+    
+    // Chama a função onEdit passando o objeto completo
+    onEdit(condominioData);
   };
 
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Container da Imagem com o efeito de hover */}
         <Box
             sx={{
                 position: 'relative',
-                // Seletores para o efeito de hover
-                '&:hover .overlay': {
-                    opacity: 1,
-                },
-                '&:hover .media': {
-                    opacity: 0.5,
-                },
+                '&:hover .overlay': { opacity: 1 },
+                '&:hover .media': { opacity: 0.5 },
             }}
         >
-            {/* Imagem do Card */}
             <CardMedia
                 className="media"
                 component="img"
                 height="140"
                 image={imageUrl || 'https://via.placeholder.com/300x140?text=Sem+Imagem'}
                 alt={`Foto do ${name}`}
-                sx={{
-                    transition: 'opacity 0.3s ease-in-out',
-                }}
+                sx={{ transition: 'opacity 0.3s ease-in-out' }}
             />
-            {/* Overlay que aparece no hover */}
             <Box
                 className="overlay"
                 sx={{
@@ -69,14 +60,12 @@ export default function CondominioCard({ id, imageUrl, name, address, type, onEd
                     transition: 'opacity 0.3s ease-in-out',
                     cursor: 'pointer',
                 }}
-                onClick={handleEditClick} // Ação de clique para editar
+                onClick={handleEditClick}
             >
                 <EditIcon />
                 <Typography variant="caption">Editar</Typography>
             </Box>
         </Box>
-
-        {/* Conteúdo do Card */}
         <CardContent sx={{ flexGrow: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Typography gutterBottom variant="h6" component="div" noWrap sx={{ maxWidth: 'calc(100% - 80px)' }}>
