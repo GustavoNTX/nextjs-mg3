@@ -2,29 +2,46 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Grid,
-  Stack,
-} from "@mui/material";
-import {
-  Add as AddIcon,
-  GetApp as GetAppIcon,
-} from "@mui/icons-material";
+import { Box, Typography, Button, Grid, Stack } from "@mui/material";
+import { Add as AddIcon, GetApp as GetAppIcon } from "@mui/icons-material";
 import Layout from "@/components/Layout";
 import AddCondominioDialog from "@/components/AddCondominioDialog";
 import CondominioCard from "@/components/CondominioCard"; // Importe o novo componente
+import EditCondominioDialog from "@/components/EditCondominioDialog"; // Importe o diálogo de edição
 
 // Dados de exemplo (substitua pela sua chamada de API)
 const condominiosMock = [
-  { id: 1, name: "Residencial Jardins", address: "Rua das Flores, 123, São Paulo", type: "Residencial", imageUrl: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop" },
-  { id: 2, name: "Business Tower", address: "Av. Principal, 456, Rio de Janeiro", type: "Comercial", imageUrl: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=2070&auto=format&fit=crop" },
-  { id: 3, name: "Condomínio Central", address: "Praça da Cidade, 789, Belo Horizonte", type: "Residencial", imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop" },
-  { id: 4, name: "Edifício Sol Nascente", address: "Rua do Sol, 101, Salvador", type: "Residencial", imageUrl: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=2070&auto=format&fit=crop" },
+  {
+    id: 1,
+    name: "Residencial Jardins",
+    cnpj: "11.111.111/0001-11",
+    address: "Rua das Flores, 123, São Paulo",
+    neighborhood: "Jardins",
+    type: "Residencial",
+    imageUrl:
+      "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop",
+  },
+  {
+    id: 2,
+    name: "Business Tower",
+    cnpj: "22.222.222/0001-22",
+    address: "Av. Principal, 456, Rio de Janeiro",
+    neighborhood: "Centro",
+    type: "Comercial",
+    imageUrl:
+      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=2070&auto=format&fit=crop",
+  },
+  {
+    id: 3,
+    name: "Condomínio Central",
+    cnpj: "33.333.333/0001-33",
+    address: "Praça da Cidade, 789, Belo Horizonte",
+    neighborhood: "Savassi",
+    type: "Residencial",
+    imageUrl:
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop",
+  },
 ];
-
 
 export default function SelecioneOCondominioPage() {
   const [condominios, setCondominios] = useState(condominiosMock); // Usando os dados de exemplo
@@ -35,8 +52,33 @@ export default function SelecioneOCondominioPage() {
     // TODO: Chamar sua API para salvar o novo condomínio
     // e depois atualizar o estado 'condominios'
     const newCondominio = { ...data, id: condominios.length + 1 };
-    setCondominios(prev => [...prev, newCondominio]);
+    setCondominios((prev) => [...prev, newCondominio]);
     setDialogOpen(false);
+  };
+
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false); // Estado para o diálogo de edição
+  const [selectedCondo, setSelectedCondo] = useState(null); // Estado para o condomínio selecionado
+
+  // Abre o diálogo de edição e define o condomínio selecionado
+  const handleEdit = (condo) => {
+    setSelectedCondo(condo);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveNew = (data) => {
+    console.log("Salvando novo condomínio:", data);
+    const newCondominio = { ...data, id: condominios.length + 1 };
+    setCondominios((prev) => [...prev, newCondominio]);
+    setAddDialogOpen(false);
+  };
+
+  const handleSaveEdit = (updatedData) => {
+    console.log("Atualizando condomínio:", updatedData);
+    setCondominios((prev) =>
+      prev.map((c) => (c.id === updatedData.id ? updatedData : c))
+    );
+    setEditDialogOpen(false);
   };
 
   return (
@@ -47,7 +89,7 @@ export default function SelecioneOCondominioPage() {
         spacing={2}
         mb={4}
         alignItems="center"
-        sx={{ justifyContent: 'flex-end' }}
+        sx={{ justifyContent: "flex-end" }}
       >
         <Button
           startIcon={<AddIcon />}
@@ -56,11 +98,7 @@ export default function SelecioneOCondominioPage() {
         >
           Adicionar condomínio
         </Button>
-        <Button
-          startIcon={<GetAppIcon />}
-          variant="outlined"
-          color="secondary"
-        >
+        <Button startIcon={<GetAppIcon />} variant="outlined" color="secondary">
           Extrair Relatório
         </Button>
       </Stack>
@@ -91,6 +129,14 @@ export default function SelecioneOCondominioPage() {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
+      />
+
+      {/* Diálogo para Editar */}
+      <EditCondominioDialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        onSave={handleSaveEdit}
+        condominio={selectedCondo}
       />
     </Layout>
   );

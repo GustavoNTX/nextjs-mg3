@@ -12,13 +12,14 @@ import {
 } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit'; // Importe o ícone de edição
 
-export default function CondominioCard({ id, imageUrl, name, address, type }) {
+export default function CondominioCard({ id, imageUrl, name, address, type, onEdit  }) {
 
   // Função placeholder para o clique no botão de editar
   const handleEditClick = (event) => {
     event.preventDefault(); // Impede que o clique se propague para outros elementos
     event.stopPropagation();
     console.log(`Clicou para editar o condomínio com ID: ${id}`);
+     onEdit(condominio);
     // Futuramente, aqui você pode abrir o diálogo ou navegar para a página de edição.
     // Ex: setEditDialogOpen(true);
   };
