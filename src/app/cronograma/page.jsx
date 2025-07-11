@@ -16,7 +16,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Paper,
-  styled, // Importa a função 'styled' do MUI
+  styled,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -34,6 +34,9 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
+
+// Importe o novo componente ListaAtividades
+import ListaAtividades from "@/components/ListaAtividades";
 
 // Wrapper estilizado para o FullCalendar
 const StyledCalendarWrapper = styled('div')(({ theme }) => ({
@@ -78,7 +81,7 @@ const mockEvents = [
 ];
 
 export default function CronogramaPage() {
-  const [currentTab, setCurrentTab] = useState(1);
+  const [currentTab, setCurrentTab] = useState(0); // Mudei o estado inicial para 0 (Lista)
   const [calendarTitle, setCalendarTitle] = useState("");
   const [currentView, setCurrentView] = useState("dayGridMonth");
   const calendarRef = useRef(null);
@@ -86,8 +89,15 @@ export default function CronogramaPage() {
   useEffect(() => {
     const calendarApi = calendarRef.current?.getApi();
     if (calendarApi) {
-      const newView = currentTab === 0 ? "listWeek" : currentView;
-      calendarApi.changeView(newView);
+      // Ajuste para que a visualização de calendário mude apenas quando a aba de calendário estiver ativa
+      if (currentTab === 1) {
+        calendarApi.changeView(currentView);
+      } else if (currentTab === 0) {
+        // Se estiver na aba de lista, você pode querer redefinir a visualização do calendário ou fazer nada
+        // Por exemplo, você pode definir uma visualização de lista para o calendário se ele ainda estiver visível
+        // ou simplesmente não fazer nada com o calendário quando a aba de lista estiver ativa.
+        // calendarApi.changeView('listWeek'); // Exemplo: se quisesse que o calendário exibisse a lista
+      }
     }
   }, [currentTab, currentView]);
 
@@ -95,7 +105,7 @@ export default function CronogramaPage() {
   const handleViewChange = (event, newView) => {
     if (newView !== null) {
       setCurrentView(newView);
-      if (currentTab !== 1) setCurrentTab(1);
+      if (currentTab !== 1) setCurrentTab(1); // Garante que, ao mudar a visualização, a aba Calendário esteja ativa
     }
   };
   const handlePrevClick = () => calendarRef.current?.getApi().prev();
@@ -103,23 +113,11 @@ export default function CronogramaPage() {
 
   return (
     <Layout>
-      {/* <Stack direction={{ xs: "column", sm: "row" }} spacing={2} mb={4} alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography variant="h4" component="h1" fontWeight="bold">Cronograma de atividades</Typography>
-          <Typography variant="subtitle1" color="text.secondary">Cronograma geral de atividades do condomínio</Typography>
-        </Box>
-        <Stack direction="row" spacing={2} alignItems="center">
-          <TextField placeholder="Pesquisar" size="small" InputProps={{ endAdornment: <InputAdornment position="end"><SearchIcon /></InputAdornment> }} />
-          <Avatar alt="Condomínio" src="/assets/images/manu-azul.png" />
-          <IconButton><NotificationsIcon /></IconButton>
-        </Stack>
-      </Stack> */}
-
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={currentTab} onChange={handleTabChange}>
-    
+          <Tab label="LISTA" />
           <Tab label="CALENDÁRIO" />
-          
+          <Tab label="KANBAN" />
         </Tabs>
       </Box>
       <Stack direction="row" justifyContent="flex-end" spacing={2} mb={3}>
@@ -128,8 +126,11 @@ export default function CronogramaPage() {
       </Stack>
 
       <Box>
+        {currentTab === 0 && (
+          <ListaAtividades /> // Renderiza o componente ListaAtividades quando a aba "LISTA" está ativa
+        )}
         {currentTab === 2 && <Typography>Visualização em Kanban (a ser implementada)</Typography>}
-        {(currentTab === 0 || currentTab === 1) && (
+        {currentTab === 1 && ( // Apenas renderiza o calendário quando a aba "CALENDÁRIO" está ativa
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
               <ToggleButtonGroup exclusive value={currentView} onChange={handleViewChange}>
@@ -142,11 +143,11 @@ export default function CronogramaPage() {
                 <IconButton onClick={handleNextClick}><ChevronRightIcon /></IconButton>
               </Stack>
             </Stack>
-            
+
             <StyledCalendarWrapper>
               <FullCalendar
                 ref={calendarRef}
-                plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]} // REMOVIDO o plugin de tema
+                plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
                 locale={ptBrLocale}
                 initialView="dayGridMonth"
                 initialDate="2025-07-02"
