@@ -1,27 +1,60 @@
 // src/components/ListaAtividades.jsx
-import React from "react";
-import { Box, Typography, Paper, Divider } from "@mui/material";
-import {
-  // ...outros ícones
-  LowPriority as LowPriorityIcon, // Ícone de baixa prioridade
-} from '@mui/icons-material';
-// Estilos para os elementos do card, baseados no seu HTML fornecido
+import React, { useState } from "react";
+import { Box, Typography, Paper, Divider, Button } from "@mui/material"; // Certifique-se que Button está importado
+import { LowPriority as LowPriorityIcon } from '@mui/icons-material';
 import { styled } from "@mui/material/styles";
+
+// --- Estilos compartilhados e corrigidos ---
+
+const TabWrapper = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: theme.spacing(2),
+  width: '100%',
+  overflowX: 'auto',
+  borderBottom: `1px solid ${theme.palette.divider}`,
+}));
+
+const StyledTab = styled('div')(({ theme, $isActive, color }) => ({
+  padding: theme.spacing(1, 2),
+  cursor: 'pointer',
+  fontWeight: $isActive ? 'bold' : 'normal',
+  color: $isActive ? color : theme.palette.text.secondary,
+  borderBottom: $isActive ? `2px solid ${color}` : 'none',
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(0.5),
+  '&:hover': {
+    color: $isActive ? color : theme.palette.text.primary,
+  },
+  minWidth: 'fit-content',
+}));
+
+const TabCircle = styled('div')(({ theme, color }) => ({
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  backgroundColor: color,
+}));
 
 const CardContainer = styled(Paper)(({ theme }) => ({
   marginBottom: theme.spacing(3),
   padding: theme.spacing(2),
-  border: "1px solid #e0e0e0", // Uma borda sutil
+  border: "1px solid #e0e0e0",
   borderRadius: theme.shape.borderRadius,
   backgroundColor: theme.palette.background.paper,
 }));
 
-const IdTag = styled(Typography)(({ theme, clickable }) => ({
+// AQUI ESTÁ A MUDANÇA PRINCIPAL: usando shouldForwardProp
+const IdTag = styled(Typography, {
+  shouldForwardProp: (prop) => prop !== '$isClickable', // Não encaminhe '$isClickable' para o DOM
+})(({ theme, $isClickable }) => ({
   fontSize: "0.75rem",
-  color: clickable ? theme.palette.text.secondary : theme.palette.text.primary,
-  cursor: clickable ? "pointer" : "default",
+  color: $isClickable ? theme.palette.text.secondary : theme.palette.text.primary,
+  cursor: $isClickable ? "pointer" : "default",
   "&:hover": {
-    textDecoration: clickable ? "underline" : "none",
+    textDecoration: $isClickable ? "underline" : "none",
   },
 }));
 
@@ -44,7 +77,7 @@ const TitleAndStatusDiv = styled(Box)({
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginBottom: "1rem", // Espaçamento inferior para separar do restante do conteúdo
+  marginBottom: "1rem",
 });
 
 const ComponentTitle = styled(Typography)(({ theme }) => ({
@@ -56,7 +89,7 @@ const ComponentTitle = styled(Typography)(({ theme }) => ({
 const MiddleElement = styled(Box)(({ theme }) => ({
   display: "flex",
   alignItems: "center",
-  marginBottom: theme.spacing(1), // Espaçamento entre os elementos do meio
+  marginBottom: theme.spacing(1),
 }));
 
 const Label = styled(Typography)(({ theme }) => ({
@@ -75,9 +108,14 @@ const Content = styled(Typography)(({ theme }) => ({
 const ActivityCard = ({ activity }) => {
   const getStatusColor = (status) => {
     switch (status) {
-      case "a fazer":
-        return "#787878"; // Cor cinza do seu HTML
-      // Adicione outros status e cores conforme necessário
+      case "Próximas":
+        return "#787878";
+      case "Em andamento":
+        return "#2d96ff";
+      case "Pendente":
+        return "#FF5959";
+      case "Histórico":
+        return "#87E76A";
       default:
         return "#787878";
     }
@@ -85,14 +123,14 @@ const ActivityCard = ({ activity }) => {
 
   return (
     <CardContainer>
-     <Box sx={{ display: { xs: "none", md: "block" } }}>
-        <IdTag clickable="true">Clique aqui para gerar o #ID</IdTag> {/* <--- Passe como string */}
-     </Box>
+      <Box sx={{ display: { xs: "none", md: "block" } }}>
+        <IdTag $isClickable>Clique aqui para gerar o #ID</IdTag>
+      </Box>
 
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
         <IdTag>#{activity.id}</IdTag>
         <Box sx={{ display: { xs: "block", md: "none" } }}>
-          <IdTag clickable>Clique aqui para gerar o #ID</IdTag>
+          <IdTag $isClickable>Clique aqui para gerar o #ID</IdTag>
         </Box>
         <Box sx={{ display: { xs: "none", md: "block" } }}>
           <StatusSpan color={getStatusColor(activity.status)}>
@@ -106,9 +144,6 @@ const ActivityCard = ({ activity }) => {
         <Box sx={{ display: "flex", alignItems: "center" }}>
           <ComponentTitle>{activity.title}</ComponentTitle>
         </Box>
-        {/* Aqui você pode adicionar os botões "Iniciar atividade" e "Concluir atividade"
-            se desejar que eles apareçam em cada card. Por enquanto, vou omitir para focar na estrutura.
-        */}
       </TitleAndStatusDiv>
 
       <Divider sx={{ my: 1 }} />
@@ -137,7 +172,6 @@ const ActivityCard = ({ activity }) => {
 
       <Box sx={{ display: { xs: "none", md: "flex" }, justifyContent: "flex-end", alignItems: "center", mt: 2 }}>
         {/* Ícones de olho, editar e compartilhar */}
-        {/* Você pode adicionar os botões aqui ou como parte da estrutura original se preferir */}
       </Box>
 
       <Box sx={{ display: { xs: "block", md: "none" } }}>
@@ -147,7 +181,6 @@ const ActivityCard = ({ activity }) => {
         </MiddleElement>
       </Box>
 
-      {/* Seções inferiores */}
       <Box sx={{ display: { xs: "block", md: "none" } }}>
         <Divider sx={{ my: 1 }} />
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2 }}>
@@ -187,14 +220,14 @@ const ActivityCard = ({ activity }) => {
 
 // Componente principal ListaAtividades
 const ListaAtividades = () => {
-  // Dados mockados para simular suas atividades.
-  // Em um cenário real, isso viria de uma API ou de um estado global.
-  const mockActivities = [
+  const [activeFilter, setActiveFilter] = useState("Próximas");
+
+  const allActivities = [
     {
       id: "teste",
-      title: "teste",
-      status: "a fazer",
-      condominium: "sem orçamento",
+      title: "Manutenção Geral do Bloco A",
+      status: "Próximas",
+      condominium: "Condomínio Edifício Central",
       budgetStatus: "sem orçamento",
       expectedDate: "10/07/2025",
       frequency: "Não se repete",
@@ -202,27 +235,27 @@ const ListaAtividades = () => {
       appliedStandard: "Não definida",
       location: "Condomínio",
       responsibles: "Não atribuídos",
-      observations: "teste",
+      observations: "Verificar vazamento no telhado.",
     },
     {
         id: "abc-123",
-        title: "Manutenção de Elevadores",
-        status: "em andamento",
-        condominium: "Com orçamento",
+        title: "Reparo da Bomba d'Água",
+        status: "Em andamento",
+        condominium: "Condomínio Residencial Vista Alegre",
         budgetStatus: "aprovado",
         expectedDate: "15/07/2025",
         frequency: "Mensal",
         team: "Terceirizada",
         appliedStandard: "ABNT NBR 1604",
-        location: "Bloco B",
+        location: "Casa de Bombas",
         responsibles: "João Silva",
-        observations: "Verificar ruídos no elevador social.",
+        observations: "Troca de selo mecânico e rolamentos.",
     },
     {
         id: "xyz-789",
-        title: "Pintura Fachada",
-        status: "pendente",
-        condominium: "Com orçamento",
+        title: "Pintura da Fachada Principal",
+        status: "Pendente",
+        condominium: "Condomínio Jardins da Cidade",
         budgetStatus: "pendente",
         expectedDate: "30/07/2025",
         frequency: "Anual",
@@ -230,14 +263,75 @@ const ListaAtividades = () => {
         appliedStandard: "NR-35",
         location: "Fachada principal",
         responsibles: "Maria Oliveira",
-        observations: "Aguardando aprovação de cor.",
+        observations: "Aguardando aprovação de cor e orçamento final.",
+    },
+    {
+      id: "def-456",
+      title: "Verificação de Incêndio Anual",
+      status: "Próximas",
+      condominium: "Condomínio Residencial Park",
+      budgetStatus: "aprovado",
+      expectedDate: "20/07/2025",
+      frequency: "Anual",
+      team: "Empresa de Segurança",
+      appliedStandard: "ITCB N° 19",
+      location: "Áreas Comuns",
+      responsibles: "Pedro Santos",
+      observations: "Verificar extintores e hidrantes.",
+    },
+    {
+      id: "ghi-012",
+      title: "Inspeção de Gás",
+      status: "Histórico",
+      condominium: "Condomínio Vila Nova",
+      budgetStatus: "aprovado",
+      expectedDate: "05/06/2025",
+      frequency: "Semestral",
+      team: "Comgás",
+      appliedStandard: "NBR 15526",
+      location: "Central de Gás",
+      responsibles: "Equipe Comgás",
+      observations: "Inspeção de rotina concluída.",
     },
   ];
 
+  const filteredActivities = allActivities.filter(
+    (activity) => activity.status === activeFilter
+  );
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Próximas":
+        return "#787878";
+      case "Em andamento":
+        return "#2d96ff";
+      case "Pendente":
+        return "#FF5959";
+      case "Histórico":
+        return "#87E76A";
+      default:
+        return "#787878";
+    }
+  };
+
   return (
     <Box>
-      {/* Aqui você pode adicionar os chips de filtro de data, se desejar */}
-      <Box sx={{ display: "flex", mb: 2 }}>
+      <TabWrapper>
+        {["Próximas", "Em andamento", "Pendente", "Histórico"].map((status) => (
+          <StyledTab
+            key={status}
+            $isActive={activeFilter === status}
+            color={getStatusColor(status)}
+            onClick={() => setActiveFilter(status)}
+          >
+            <TabCircle color={getStatusColor(status)} />
+            {status}
+          </StyledTab>
+        ))}
+      </TabWrapper>
+
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        {/* Chip de Data */}
         <Paper
           variant="outlined"
           sx={{
@@ -247,16 +341,25 @@ const ListaAtividades = () => {
             fontSize: "0.875rem",
             color: "text.secondary",
             cursor: "pointer",
+            mr: 2,
           }}
         >
           10/07/2025 - 31/08/2025
         </Paper>
+
+        {/* Botão de Filtros */}
+
       </Box>
 
-      {/* Mapeia os dados mockados para renderizar os cards de atividade */}
-      {mockActivities.map((activity) => (
-        <ActivityCard key={activity.id} activity={activity} />
-      ))}
+      {filteredActivities.length > 0 ? (
+        filteredActivities.map((activity) => (
+          <ActivityCard key={activity.id} activity={activity} />
+        ))
+      ) : (
+        <Typography variant="h6" color="text.secondary" sx={{ mt: 4, textAlign: 'center' }}>
+          Não há atividades para mostrar neste filtro.
+        </Typography>
+      )}
     </Box>
   );
 };

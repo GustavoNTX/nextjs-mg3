@@ -37,6 +37,7 @@ import ptBrLocale from "@fullcalendar/core/locales/pt-br";
 
 // Importe o novo componente ListaAtividades
 import ListaAtividades from "@/components/ListaAtividades";
+import KanbanBoard from "@/components/KanbanBoard"; 
 
 // Wrapper estilizado para o FullCalendar
 const StyledCalendarWrapper = styled('div')(({ theme }) => ({
@@ -129,7 +130,7 @@ export default function CronogramaPage() {
         {currentTab === 0 && (
           <ListaAtividades /> // Renderiza o componente ListaAtividades quando a aba "LISTA" está ativa
         )}
-        {currentTab === 2 && <Typography>Visualização em Kanban (a ser implementada)</Typography>}
+        {currentTab === 2 &&   <KanbanBoard /> }
         {currentTab === 1 && ( // Apenas renderiza o calendário quando a aba "CALENDÁRIO" está ativa
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
