@@ -9,9 +9,8 @@ import AddCondominioDialog from "@/components/AddCondominioDialog";
 import CondominioCard from "@/components/CondominioCard";
 import EditCondominioDialog from "@/components/EditCondominioDialog";
 
-// Dados de exemplo (substitua pela sua chamada de API)
 const condominiosMock = [
-  // ...seus dados de exemplo permanecem aqui...
+  // ...seus dados de exemplo
   {
     id: 1,
     name: "Residencial Jardins",
@@ -46,99 +45,97 @@ const condominiosMock = [
 
 export default function SelecioneOCondominioPage() {
   const [condominios, setCondominios] = useState(condominiosMock);
-  const [addDialogOpen, setAddDialogOpen] = useState(false); // Estado unificado para o diálogo de adição
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCondo, setSelectedCondo] = useState(null);
 
-  // Abre o diálogo de edição com os dados do condomínio
   const handleEdit = (condo) => {
     setSelectedCondo(condo);
     setEditDialogOpen(true);
   };
-
-  // Salva um novo condomínio
   const handleSaveNew = (data) => {
-    console.log("Salvando novo condomínio:", data);
     const newCondominio = { ...data, id: condominios.length + 1 };
     setCondominios((prev) => [...prev, newCondominio]);
     setAddDialogOpen(false);
   };
-
-  // Atualiza um condomínio existente
   const handleSaveEdit = (updatedData) => {
-    console.log("Atualizando condomínio:", updatedData);
     setCondominios((prev) =>
       prev.map((c) => (c.id === updatedData.id ? updatedData : c))
     );
     setEditDialogOpen(false);
   };
-
-  // <<< MUDANÇA AQUI: Adicionada a função para deletar
   const handleDelete = (condoId) => {
-    console.log("Excluindo condomínio com ID:", condoId);
     setCondominios((prev) => prev.filter((c) => c.id !== condoId));
     setEditDialogOpen(false);
   };
 
   return (
     <Layout>
-      {/* Ações */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        mb={4}
-        alignItems="center"
-        sx={{ justifyContent: "flex-end" }}
-      >
-        <Button
-          startIcon={<AddIcon />}
-          variant="contained"
-          onClick={() => setAddDialogOpen(true)} // <<< MUDANÇA AQUI: Simplificado
+      {/* <<< MUDANÇA AQUI: Adicionado Box com padding responsivo */}
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        {/* Ações */}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          mb={4}
+          alignItems="center"
+          sx={{ justifyContent: "flex-end" }}
         >
-          Adicionar condomínio
-        </Button>
-        <Button startIcon={<GetAppIcon />} variant="outlined" color="secondary">
-          Extrair Relatório
-        </Button>
-      </Stack>
+          <Button
+            startIcon={<AddIcon />}
+            variant="contained"
+            onClick={() => setAddDialogOpen(true)}
+            // <<< MUDANÇA AQUI: Botão com largura responsiva
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Adicionar condomínio
+          </Button>
+          <Button
+            startIcon={<GetAppIcon />}
+            variant="outlined"
+            color="secondary"
+            // <<< MUDANÇA AQUI: Botão com largura responsiva
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Extrair Relatório
+          </Button>
+        </Stack>
 
-      {/* Grid de Condomínios */}
-      <Grid container spacing={3}>
-        {condominios.length > 0 ? (
-          condominios.map((condominio) => (
-            <Grid item key={condominio.id} xs={12} sm={6} md={4}>
-              {/* <<< MUDANÇA AQUI: Passando a função onEdit */}
-              <CondominioCard {...condominio} onEdit={handleEdit} />
+        {/* Grid de Condomínios */}
+        <Grid container spacing={3}>
+          {condominios.length > 0 ? (
+            condominios.map((condominio) => (
+              <Grid item key={condominio.id} xs={12} sm={6} md={4}>
+                <CondominioCard {...condominio} onEdit={handleEdit} />
+              </Grid>
+            ))
+          ) : (
+            <Grid item xs={12}>
+              <Box textAlign="center" mt={8}>
+                <Typography variant="h6" color="text.secondary">
+                  Não há condomínios para mostrar
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Clique em "Adicionar condomínio" para começar.
+                </Typography>
+              </Box>
             </Grid>
-          ))
-        ) : (
-          <Grid item xs={12}>
-            <Box textAlign="center" mt={8}>
-              <Typography variant="h6" color="text.secondary">
-                Não há condomínios para mostrar
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Clique em "Adicionar condomínio" para começar.
-              </Typography>
-            </Box>
-          </Grid>
-        )}
-      </Grid>
+          )}
+        </Grid>
+      </Box>
 
-      {/* Diálogo para Adicionar */}
+      {/* Diálogos */}
       <AddCondominioDialog
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         onSave={handleSaveNew}
       />
-
-      {/* Diálogo para Editar */}
-      {selectedCondo && ( // Renderiza o diálogo apenas se houver um condomínio selecionado
+      {selectedCondo && (
         <EditCondominioDialog
           open={editDialogOpen}
           onClose={() => setEditDialogOpen(false)}
           onSave={handleSaveEdit}
-          onDelete={handleDelete} // <<< MUDANÇA AQUI: Passando a função onDelete
+          onDelete={handleDelete}
           condominio={selectedCondo}
         />
       )}
