@@ -22,6 +22,7 @@ import {
 } from "@mui/icons-material";
 
 export default function HeaderMobile({
+  title,
   search,
   setSearch,
   filtro,
@@ -33,17 +34,27 @@ export default function HeaderMobile({
   return (
     <Box>
       {/* 1) AppBar com menu e sino */}
-      <AppBar position="fixed" color="transparent" elevation={0}>
+      <AppBar
+        position="fixed"
+        elevation={1} // Adiciona uma leve sombra
+        sx={{ backgroundColor: theme.palette.background.paper }} // Garante o fundo
+      >
         <Toolbar>
           <IconButton edge="start" onClick={onMenuClick} sx={{ mr: 1 }}>
             <MenuIcon />
           </IconButton>
           <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="h6" noWrap fontWeight="bold">
-            Selecione o condomínio
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{
+              flexGrow: 1,
+              textAlign: "center",
+              color: "primary.main", // Aplicando a cor primária do tema
+            }}
+          >
+            {title}
           </Typography>
-
-          {/* empurra o sino para a direita */}
           <Box sx={{ flexGrow: 1 }} />
           <IconButton>
             <NotificationsIcon />
@@ -70,7 +81,6 @@ export default function HeaderMobile({
           }}
           sx={{ mb: 2 }}
         />
-
         <FormControl fullWidth variant="standard">
           <InputLabel>Filtrar por tipo</InputLabel>
           <Select
