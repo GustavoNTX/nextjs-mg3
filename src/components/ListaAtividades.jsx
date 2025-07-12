@@ -1,19 +1,33 @@
 // src/components/ListaAtividades.jsx
+"use client"; // Adicionado para garantir que o componente é um Client Component
+
 import React, { useState } from "react";
-import { Box, Typography, Paper, Divider, Button } from "@mui/material"; // Certifique-se que Button está importado
+import {
+  Box,
+  Typography,
+  Paper,
+  Divider,
+  Button,
+  useMediaQuery, // Importe useMediaQuery
+  useTheme, // Importe useTheme
+} from "@mui/material";
 import { LowPriority as LowPriorityIcon } from '@mui/icons-material';
 import { styled } from "@mui/material/styles";
+import HomeRepairServiceIcon from '@mui/icons-material/HomeRepairService'; // Ícone para o botão "Filtros"
 
 // --- Estilos compartilhados e corrigidos ---
 
 const TabWrapper = styled(Box)(({ theme }) => ({
   display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
+  // Flex wrap para que as abas quebrem em várias linhas em telas pequenas
+  flexWrap: 'wrap',
+  justifyContent: 'flex-start', // Alinha ao início para evitar espaçamento excessivo em poucas abas
+  gap: theme.spacing(1), // Espaçamento entre as abas
   marginBottom: theme.spacing(2),
   width: '100%',
-  overflowX: 'auto',
+  overflowX: 'auto', // Permite rolagem horizontal se necessário (principalmente em gaps menores)
   borderBottom: `1px solid ${theme.palette.divider}`,
+  paddingBottom: theme.spacing(1), // Espaço para a borda inferior
 }));
 
 const StyledTab = styled('div')(({ theme, $isActive, color }) => ({
@@ -29,6 +43,8 @@ const StyledTab = styled('div')(({ theme, $isActive, color }) => ({
     color: $isActive ? color : theme.palette.text.primary,
   },
   minWidth: 'fit-content',
+  // Adiciona margem inferior para as abas quando elas quebram em várias linhas
+  marginBottom: theme.spacing(0.5),
 }));
 
 const TabCircle = styled('div')(({ theme, color }) => ({
@@ -46,9 +62,8 @@ const CardContainer = styled(Paper)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
 }));
 
-// AQUI ESTÁ A MUDANÇA PRINCIPAL: usando shouldForwardProp
 const IdTag = styled(Typography, {
-  shouldForwardProp: (prop) => prop !== '$isClickable', // Não encaminhe '$isClickable' para o DOM
+  shouldForwardProp: (prop) => prop !== '$isClickable',
 })(({ theme, $isClickable }) => ({
   fontSize: "0.75rem",
   color: $isClickable ? theme.palette.text.secondary : theme.palette.text.primary,
@@ -78,18 +93,27 @@ const TitleAndStatusDiv = styled(Box)({
   justifyContent: "space-between",
   alignItems: "center",
   marginBottom: "1rem",
+  // Garante que o título e o status se ajustem em telas pequenas
+  flexWrap: 'wrap',
 });
 
 const ComponentTitle = styled(Typography)(({ theme }) => ({
   fontWeight: "bold",
   fontSize: "1.25rem",
   color: theme.palette.text.primary,
+  // Ajusta o tamanho da fonte em telas menores
+  [theme.breakpoints.down('sm')]: {
+    fontSize: "1rem", // Menor em telas pequenas
+  },
 }));
 
 const MiddleElement = styled(Box)(({ theme }) => ({
   display: "flex",
   alignItems: "center",
   marginBottom: theme.spacing(1),
+  // Permite que os elementos quebrem em telas pequenas
+  flexWrap: 'wrap',
+  gap: theme.spacing(0.5), // Espaço entre os itens internos
 }));
 
 const Label = styled(Typography)(({ theme }) => ({
@@ -106,6 +130,9 @@ const Content = styled(Typography)(({ theme }) => ({
 
 // Este componente representa um "card" de atividade
 const ActivityCard = ({ activity }) => {
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('md')); // Define o breakpoint para small/medium screens
+
   const getStatusColor = (status) => {
     switch (status) {
       case "Próximas":
@@ -123,15 +150,18 @@ const ActivityCard = ({ activity }) => {
 
   return (
     <CardContainer>
+      {/* Oculta em telas pequenas, mostra em md e acima */}
       <Box sx={{ display: { xs: "none", md: "block" } }}>
         <IdTag $isClickable>Clique aqui para gerar o #ID</IdTag>
       </Box>
 
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
         <IdTag>#{activity.id}</IdTag>
+        {/* Mostra em telas pequenas, oculta em md e acima */}
         <Box sx={{ display: { xs: "block", md: "none" } }}>
           <IdTag $isClickable>Clique aqui para gerar o #ID</IdTag>
         </Box>
+        {/* Oculta em telas pequenas, mostra em md e acima */}
         <Box sx={{ display: { xs: "none", md: "block" } }}>
           <StatusSpan color={getStatusColor(activity.status)}>
             <StatusCircle color={getStatusColor(activity.status)} />
@@ -148,13 +178,19 @@ const ActivityCard = ({ activity }) => {
 
       <Divider sx={{ my: 1 }} />
 
-      <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between" }}>
+      <Box sx={{
+          display: "flex",
+          // Em telas pequenas, a direção é coluna; em telas maiores, é linha
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          // Envolve os itens para que quebrem em várias linhas se não houver espaço
+          flexWrap: 'wrap',
+          justifyContent: "space-between",
+          gap: isSmallScreen ? 1 : 2, // Reduz o gap em telas pequenas
+      }}>
         <MiddleElement>
           <LowPriorityIcon sx={{ marginRight: '8px', fontSize: '16px' }} />
-          <MiddleElement>
-            <Label>Condomínio</Label>
-            <Content>{activity.condominium}</Content>
-          </MiddleElement>
+          <Label>Condomínio:</Label>
+          <Content>{activity.condominium}</Content>
         </MiddleElement>
 
         <MiddleElement>
@@ -162,6 +198,7 @@ const ActivityCard = ({ activity }) => {
           <Content>{activity.budgetStatus}</Content>
         </MiddleElement>
 
+        {/* Mostra o status do card aqui em telas pequenas */}
         <Box sx={{ display: { xs: "block", md: "none" } }}>
           <StatusSpan color={getStatusColor(activity.status)}>
             <StatusCircle color={getStatusColor(activity.status)} />
@@ -170,46 +207,41 @@ const ActivityCard = ({ activity }) => {
         </Box>
       </Box>
 
+      {/* Ícones de olho, editar e compartilhar: mostra em md e acima */}
       <Box sx={{ display: { xs: "none", md: "flex" }, justifyContent: "flex-end", alignItems: "center", mt: 2 }}>
-        {/* Ícones de olho, editar e compartilhar */}
+        {/* Adicione seus ícones aqui, se desejar */}
       </Box>
 
-      <Box sx={{ display: { xs: "block", md: "none" } }}>
-        <MiddleElement>
-          <Label>Data prevista:</Label>
-          <Content>{activity.expectedDate}</Content>
-        </MiddleElement>
-      </Box>
-
+      {/* Seções inferiores (mostra em telas pequenas, oculta em md e acima) */}
       <Box sx={{ display: { xs: "block", md: "none" } }}>
         <Divider sx={{ my: 1 }} />
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, flexDirection: 'column' }}> {/* Força coluna para os detalhes */}
           <Box>
-            <Label>Frequência</Label>
+            <Label>Frequência:</Label>
             <Content>{activity.frequency}</Content>
           </Box>
           <Box>
-            <Label>Data prevista</Label>
+            <Label>Data prevista:</Label>
             <Content>{activity.expectedDate}</Content>
           </Box>
           <Box>
-            <Label>Equipe</Label>
+            <Label>Equipe:</Label>
             <Content>{activity.team}</Content>
           </Box>
           <Box>
-            <Label>Norma aplicada</Label>
+            <Label>Norma aplicada:</Label>
             <Content>{activity.appliedStandard}</Content>
           </Box>
           <Box>
-            <Label>Local</Label>
+            <Label>Local:</Label>
             <Content>{activity.location}</Content>
           </Box>
           <Box>
-            <Label>Responsáveis</Label>
+            <Label>Responsáveis:</Label>
             <Content>{activity.responsibles}</Content>
           </Box>
           <Box>
-            <Label>Observações</Label>
+            <Label>Observações:</Label>
             <Content>{activity.observations}</Content>
           </Box>
         </Box>
@@ -221,6 +253,8 @@ const ActivityCard = ({ activity }) => {
 // Componente principal ListaAtividades
 const ListaAtividades = () => {
   const [activeFilter, setActiveFilter] = useState("Próximas");
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('md')); // Usado para responsividade
 
   const allActivities = [
     {
@@ -316,6 +350,7 @@ const ListaAtividades = () => {
 
   return (
     <Box>
+      {/* Abas de status */}
       <TabWrapper>
         {["Próximas", "Em andamento", "Pendente", "Histórico"].map((status) => (
           <StyledTab
@@ -330,7 +365,19 @@ const ListaAtividades = () => {
         ))}
       </TabWrapper>
 
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+      {/* Seção de Chip de Data e Botão de Filtros */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+          // Em telas pequenas, empilha os itens verticalmente
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          alignItems: isSmallScreen ? 'flex-start' : 'center', // Alinha ao início em coluna
+          gap: isSmallScreen ? 2 : 0, // Aumenta o gap em coluna
+        }}
+      >
         {/* Chip de Data */}
         <Paper
           variant="outlined"
@@ -341,16 +388,26 @@ const ListaAtividades = () => {
             fontSize: "0.875rem",
             color: "text.secondary",
             cursor: "pointer",
-            mr: 2,
+            // Remove margin-right em telas pequenas se for o único item na linha
+            mr: isSmallScreen ? 0 : 2,
+            width: isSmallScreen ? '100%' : 'auto', // Ocupa largura total em telas pequenas
+            textAlign: isSmallScreen ? 'center' : 'left',
           }}
         >
           10/07/2025 - 31/08/2025
         </Paper>
 
         {/* Botão de Filtros */}
-
+        <Button
+          variant="text"
+          sx={{ color: '#EA6037' }}
+          startIcon={<HomeRepairServiceIcon sx={{ width: 20, height: 20 }} />}
+        >
+          Filtros
+        </Button>
       </Box>
 
+      {/* Renderização dos cards de atividade */}
       {filteredActivities.length > 0 ? (
         filteredActivities.map((activity) => (
           <ActivityCard key={activity.id} activity={activity} />

@@ -1,48 +1,74 @@
 // src/components/KanbanBoard.jsx
-"use client"; // Necessário para componentes com estado ou interatividade no Next.js App Router
+"use client";
 
 import React, { useState } from 'react';
-import { Box, Typography, Paper, Chip, Button, IconButton, Divider } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import {
+  Box,
+  Typography,
+  Paper,
+  Chip,
+  Button,
+  IconButton,
+  Divider,
+  useTheme,       // Importe useTheme
+  useMediaQuery   // Importe useMediaQuery
+} from '@mui/material';
 import {
   Edit as EditIcon,
   Share as ShareIcon,
   InfoOutlined as InfoIcon,
-  LowPriority as LowPriorityIcon, // Exemplo de ícone de prioridade
+  LowPriority as LowPriorityIcon,
 } from '@mui/icons-material';
-import HomeRepairServiceIcon from '@mui/icons-material/HomeRepairService'; // Ícone para "Filtros"
-
+import HomeRepairServiceIcon from '@mui/icons-material/HomeRepairService';
+import { styled } from '@mui/material/styles'; 
 // --- Estilos para o Kanban Board ---
 
 const KanbanContainer = styled(Box)(({ theme }) => ({
   marginTop: theme.spacing(3),
 }));
 
+// Removendo 'marginRight' fixo para permitir flexibilidade
 const StyledChip = styled(Chip)(({ theme }) => ({
   borderRadius: '20px',
-  marginRight: theme.spacing(1),
+  // marginRight: theme.spacing(1), // Removido para controle em flexbox
   marginBottom: theme.spacing(2),
   cursor: 'pointer',
 }));
 
 const GridContainer = styled(Box)(({ theme }) => ({
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', // Colunas responsivas
+  // Em telas pequenas (xs, sm), mostra apenas 1 coluna por vez, com rolagem
+  // Em telas médias (md), pode mostrar 2 ou mais
+  // Em telas grandes (lg e xl), mantém a regra original de minmax(280px, 1fr)
+  [theme.breakpoints.down('sm')]: {
+    gridTemplateColumns: '1fr', // Uma coluna por vez em telas muito pequenas
+    overflowX: 'hidden', // Remove a rolagem horizontal, empilha as colunas
+  },
+  [theme.breakpoints.between('sm', 'md')]: {
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', // Permite 2 colunas se houver espaço, mas ainda rolável
+    overflowX: 'auto', // Rolagem para telas sm-md se não couberem
+  },
+  [theme.breakpoints.up('md')]: {
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', // Layout original em desktop
+    overflowX: 'hidden', // Normalmente não precisa de rolagem horizontal aqui
+  },
   gap: theme.spacing(2),
-  overflowX: 'auto', // Permite rolagem horizontal se necessário
   paddingBottom: theme.spacing(2),
 }));
 
 const Column = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
   borderRadius: theme.shape.borderRadius,
-  backgroundColor: theme.palette.background.default, // Fundo claro para a coluna
-  minHeight: '400px', // Altura mínima para visualização
+  backgroundColor: theme.palette.background.default,
+  minHeight: '400px',
   display: 'flex',
   flexDirection: 'column',
+  // Adiciona margem inferior para colunas quando empilhadas
+  [theme.breakpoints.down('sm')]: {
+    marginBottom: theme.spacing(2),
+  },
 }));
 
-// Estilos para o título da coluna (Próximas, Em Andamento, etc.)
 const ColumnHeaderStatusSpan = styled('span')(({ theme, color }) => ({
   display: 'flex',
   alignItems: 'center',
@@ -60,7 +86,7 @@ const ColumnHeaderStatusCircle = styled('div')(({ theme, color }) => ({
   marginRight: theme.spacing(1),
 }));
 
-// --- Estilos e Componente para os Cards do Kanban (ajustados para a estrutura do Kanban) ---
+// --- Estilos e Componente para os Cards do Kanban ---
 
 const CardContainer = styled(Paper)(({ theme }) => ({
   marginBottom: theme.spacing(2),
@@ -68,13 +94,16 @@ const CardContainer = styled(Paper)(({ theme }) => ({
   border: '1px solid #e0e0e0',
   borderRadius: theme.shape.borderRadius,
   backgroundColor: theme.palette.background.paper,
-  cursor: 'grab', // Indica que o item pode ser arrastado (visual apenas)
+  cursor: 'grab',
   '&:active': {
     cursor: 'grabbing',
   },
+  // Ajusta padding em telas menores para melhor uso do espaço
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(1.5),
+  },
 }));
 
-// Corrigindo a prop '$isClickable' com shouldForwardProp para Typography
 const IdTag = styled(Typography, {
   shouldForwardProp: (prop) => prop !== '$isClickable',
 })(({ theme, $isClickable }) => ({
@@ -91,12 +120,19 @@ const CardTitle = styled(Typography)(({ theme }) => ({
   fontSize: '1rem',
   color: theme.palette.text.primary,
   flexGrow: 1,
+  // Reduz o tamanho da fonte do título do card em telas pequenas
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.9rem',
+  },
 }));
 
 const CardMiddleElement = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   marginBottom: theme.spacing(0.5),
+  // Permite que o conteúdo quebre em várias linhas se não houver espaço
+  flexWrap: 'wrap',
+  gap: theme.spacing(0.5),
 }));
 
 const CardLabel = styled(Typography)(({ theme }) => ({
@@ -104,17 +140,23 @@ const CardLabel = styled(Typography)(({ theme }) => ({
   marginRight: theme.spacing(1),
   color: theme.palette.text.secondary,
   fontSize: '0.8rem',
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.75rem',
+  },
 }));
 
 const CardContent = styled(Typography)(({ theme }) => ({
   fontSize: '0.8rem',
   color: theme.palette.text.primary,
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.75rem',
+  },
 }));
 
 const CardStatusWrapper = styled(Box)(({ theme }) => ({
     marginTop: theme.spacing(2),
     display: 'flex',
-    justifyContent: 'flex-end', // Alinha o status à direita no card
+    justifyContent: 'flex-end',
     alignItems: 'center',
 }));
 
@@ -137,13 +179,16 @@ const CardStatusCircle = styled('div')(({ theme, color }) => ({
 
 // Componente Card para o Kanban
 const KanbanActivityCard = ({ activity }) => {
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm')); // Breakpoint específico para cards
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'Próximas': return '#787878';
       case 'Em andamento': return '#2d96ff';
       case 'Pendente': return '#FF5959';
       case 'Histórico': return '#87E76A';
-      case 'A fazer': return '#787878'; // Se 'A fazer' for um status de card
+      case 'A fazer': return '#787878';
       default: return '#787878';
     }
   };
@@ -178,16 +223,29 @@ const KanbanActivityCard = ({ activity }) => {
         </CardMiddleElement>
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+      <Box sx={{
+          display: 'flex',
+          // Empilha botões e status em telas pequenas
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isSmallScreen ? 'flex-start' : 'center',
+          mt: 2,
+          gap: isSmallScreen ? 1 : 0, // Espaçamento quando empilhado
+      }}>
         <Button
           variant="outlined"
           size="small"
           startIcon={<InfoIcon />}
-          sx={{ color: '#545454', borderColor: '#545454' }}
+          sx={{
+            color: '#545454',
+            borderColor: '#545454',
+            // Ocupa largura total em telas pequenas
+            width: isSmallScreen ? '100%' : 'auto',
+          }}
         >
           Ver mais
         </Button>
-        <CardStatusWrapper>
+        <CardStatusWrapper sx={{ mt: isSmallScreen ? 1 : 0, width: isSmallScreen ? '100%' : 'auto', justifyContent: isSmallScreen ? 'flex-start' : 'flex-end' }}>
             <CardStatusSpan color={getStatusColor(activity.status)}>
                 <CardStatusCircle color={getStatusColor(activity.status)} />
                 <Typography variant="body2">{activity.status}</Typography>
@@ -195,14 +253,30 @@ const KanbanActivityCard = ({ activity }) => {
         </CardStatusWrapper>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'flex-end' }}>
+      <Box sx={{
+          display: 'flex',
+          gap: 1,
+          mt: 2,
+          justifyContent: 'flex-end',
+          // Empilha botões de ação em telas pequenas
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          width: isSmallScreen ? '100%' : 'auto',
+      }}>
         {activity.status === 'Próximas' && (
-          <Button variant="contained" size="small" sx={{ backgroundColor: '#E6EAED', color: '#545454' }}>
+          <Button variant="contained" size="small" sx={{
+              backgroundColor: '#E6EAED',
+              color: '#545454',
+              width: isSmallScreen ? '100%' : 'auto', // Ocupa largura total
+          }}>
             Iniciar atividade
           </Button>
         )}
         {activity.status === 'Em andamento' && (
-          <Button variant="contained" size="small" sx={{ backgroundColor: '#E6EAED', color: '#545454' }}>
+          <Button variant="contained" size="small" sx={{
+              backgroundColor: '#E6EAED',
+              color: '#545454',
+              width: isSmallScreen ? '100%' : 'auto', // Ocupa largura total
+          }}>
             Concluir atividade
           </Button>
         )}
@@ -214,8 +288,9 @@ const KanbanActivityCard = ({ activity }) => {
 
 // --- Componente Principal KanbanBoard ---
 const KanbanBoard = () => {
-  // Dados mockados para simular suas atividades.
-  // IMPORTANTE: O 'status' de cada atividade deve corresponder aos nomes das colunas.
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm')); // Para a seção de filtros
+
   const [activities, setActivities] = useState([
     {
       id: '6283dc8d-229e-4a91-8678-afc9372e705f',
@@ -286,15 +361,40 @@ const KanbanBoard = () => {
         Obs: Após recarregar a página, os cards serão mostrados novamente em ordem cronológica
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', mb: 3, justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          mb: 3,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          // Empilha o chip e o botão de filtros em telas pequenas
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          alignItems: isSmallScreen ? 'flex-start' : 'center',
+          gap: isSmallScreen ? 2 : 0, // Aumenta o gap em coluna
+        }}
+      >
         {/* Chip de Data */}
-        <StyledChip label="12/04/2025 - 12/10/2025" clickable />
+        <StyledChip
+          label="12/04/2025 - 12/10/2025"
+          clickable // Certifique-se que esta prop está sendo tratada via shouldForwardProp se StyledChip for customizado
+          sx={{
+            // Ocupa a largura total e centraliza o texto em telas pequenas
+            width: isSmallScreen ? '100%' : 'auto',
+            textAlign: isSmallScreen ? 'center' : 'left',
+            mr: isSmallScreen ? 0 : 1, // Remove margin-right quando em coluna
+          }}
+        />
 
         {/* Botão de Filtros */}
         <Button
           variant="text"
-          sx={{ color: '#EA6037' }}
-          startIcon={<HomeRepairServiceIcon sx={{ width: 20, height: 20 }} />} // Usando HomeRepairServiceIcon do MUI
+          sx={{
+            color: '#EA6037',
+            width: isSmallScreen ? '100%' : 'auto', // Ocupa a largura total em telas pequenas
+            justifyContent: isSmallScreen ? 'center' : 'flex-start', // Centraliza o ícone e texto
+          }}
+          startIcon={<HomeRepairServiceIcon sx={{ width: 20, height: 20 }} />}
         >
           Filtros
         </Button>
