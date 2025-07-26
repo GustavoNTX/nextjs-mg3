@@ -10,8 +10,8 @@ import {
   Button,
   IconButton,
   Divider,
-  useTheme,       // Importe useTheme
-  useMediaQuery   // Importe useMediaQuery
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -20,41 +20,44 @@ import {
   LowPriority as LowPriorityIcon,
 } from '@mui/icons-material';
 import HomeRepairServiceIcon from '@mui/icons-material/HomeRepairService';
-import { styled } from '@mui/material/styles'; 
-// --- Estilos para o Kanban Board ---
+import { styled } from '@mui/material/styles';
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+} from "react-beautiful-dnd";
+
+// --- Estilos do Kanban Board (do código original) ---
 
 const KanbanContainer = styled(Box)(({ theme }) => ({
   marginTop: theme.spacing(3),
 }));
 
-// Removendo 'marginRight' fixo para permitir flexibilidade
 const StyledChip = styled(Chip)(({ theme }) => ({
   borderRadius: '20px',
-  // marginRight: theme.spacing(1), // Removido para controle em flexbox
   marginBottom: theme.spacing(2),
   cursor: 'pointer',
 }));
 
+// GridContainer com a lógica de responsividade completa
 const GridContainer = styled(Box)(({ theme }) => ({
   display: 'grid',
-  // Em telas pequenas (xs, sm), mostra apenas 1 coluna por vez, com rolagem
-  // Em telas médias (md), pode mostrar 2 ou mais
-  // Em telas grandes (lg e xl), mantém a regra original de minmax(280px, 1fr)
   [theme.breakpoints.down('sm')]: {
-    gridTemplateColumns: '1fr', // Uma coluna por vez em telas muito pequenas
-    overflowX: 'hidden', // Remove a rolagem horizontal, empilha as colunas
+    gridTemplateColumns: '1fr',
+    overflowX: 'hidden',
   },
   [theme.breakpoints.between('sm', 'md')]: {
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', // Permite 2 colunas se houver espaço, mas ainda rolável
-    overflowX: 'auto', // Rolagem para telas sm-md se não couberem
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    overflowX: 'auto',
   },
   [theme.breakpoints.up('md')]: {
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', // Layout original em desktop
-    overflowX: 'hidden', // Normalmente não precisa de rolagem horizontal aqui
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    overflowX: 'hidden',
   },
   gap: theme.spacing(2),
   paddingBottom: theme.spacing(2),
 }));
+
 
 const Column = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -63,7 +66,6 @@ const Column = styled(Paper)(({ theme }) => ({
   minHeight: '400px',
   display: 'flex',
   flexDirection: 'column',
-  // Adiciona margem inferior para colunas quando empilhadas
   [theme.breakpoints.down('sm')]: {
     marginBottom: theme.spacing(2),
   },
@@ -86,7 +88,7 @@ const ColumnHeaderStatusCircle = styled('div')(({ theme, color }) => ({
   marginRight: theme.spacing(1),
 }));
 
-// --- Estilos e Componente para os Cards do Kanban ---
+// --- Estilos do Card (do código original) ---
 
 const CardContainer = styled(Paper)(({ theme }) => ({
   marginBottom: theme.spacing(2),
@@ -98,29 +100,21 @@ const CardContainer = styled(Paper)(({ theme }) => ({
   '&:active': {
     cursor: 'grabbing',
   },
-  // Ajusta padding em telas menores para melhor uso do espaço
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(1.5),
   },
 }));
 
-const IdTag = styled(Typography, {
-  shouldForwardProp: (prop) => prop !== '$isClickable',
-})(({ theme, $isClickable }) => ({
+const IdTag = styled(Typography)({
   fontSize: '0.75rem',
-  color: $isClickable ? theme.palette.text.secondary : theme.palette.text.primary,
-  cursor: $isClickable ? 'pointer' : 'default',
-  '&:hover': {
-    textDecoration: $isClickable ? 'underline' : 'none',
-  },
-}));
+  color: (theme) => theme.palette.text.secondary,
+});
 
 const CardTitle = styled(Typography)(({ theme }) => ({
   fontWeight: 'bold',
   fontSize: '1rem',
   color: theme.palette.text.primary,
   flexGrow: 1,
-  // Reduz o tamanho da fonte do título do card em telas pequenas
   [theme.breakpoints.down('sm')]: {
     fontSize: '0.9rem',
   },
@@ -130,7 +124,6 @@ const CardMiddleElement = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   marginBottom: theme.spacing(0.5),
-  // Permite que o conteúdo quebre em várias linhas se não houver espaço
   flexWrap: 'wrap',
   gap: theme.spacing(0.5),
 }));
@@ -154,10 +147,10 @@ const CardContent = styled(Typography)(({ theme }) => ({
 }));
 
 const CardStatusWrapper = styled(Box)(({ theme }) => ({
-    marginTop: theme.spacing(2),
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+  marginTop: theme.spacing(2),
+  display: 'flex',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
 }));
 
 const CardStatusSpan = styled('span')(({ theme, color }) => ({
@@ -177,10 +170,10 @@ const CardStatusCircle = styled('div')(({ theme, color }) => ({
 }));
 
 
-// Componente Card para o Kanban
+// Componente Card do Kanban (do código original, com layout correto)
 const KanbanActivityCard = ({ activity }) => {
   const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm')); // Breakpoint específico para cards
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -188,7 +181,6 @@ const KanbanActivityCard = ({ activity }) => {
       case 'Em andamento': return '#2d96ff';
       case 'Pendente': return '#FF5959';
       case 'Histórico': return '#87E76A';
-      case 'A fazer': return '#787878';
       default: return '#787878';
     }
   };
@@ -196,7 +188,7 @@ const KanbanActivityCard = ({ activity }) => {
   return (
     <CardContainer elevation={1}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <IdTag>#{activity.id}</IdTag>
+        <IdTag>#{activity.id.substring(0, 8)}</IdTag> {/* Mostrando apenas parte do ID */}
         <Box>
           <IconButton size="small"><EditIcon fontSize="small" /></IconButton>
           <IconButton size="small"><ShareIcon fontSize="small" /></IconButton>
@@ -204,12 +196,11 @@ const KanbanActivityCard = ({ activity }) => {
       </Box>
 
       <CardTitle>{activity.title}</CardTitle>
-
       <Divider sx={{ my: 1 }} />
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <CardMiddleElement>
-          <LowPriorityIcon sx={{ marginRight: '8px', fontSize: '16px' }} />
+          <LowPriorityIcon sx={{ marginRight: '8px', fontSize: '16px', color: 'text.secondary' }} />
           <CardLabel>Condomínio:</CardLabel>
           <CardContent>{activity.condominium}</CardContent>
         </CardMiddleElement>
@@ -224,13 +215,12 @@ const KanbanActivityCard = ({ activity }) => {
       </Box>
 
       <Box sx={{
-          display: 'flex',
-          // Empilha botões e status em telas pequenas
-          flexDirection: isSmallScreen ? 'column' : 'row',
-          justifyContent: 'space-between',
-          alignItems: isSmallScreen ? 'flex-start' : 'center',
-          mt: 2,
-          gap: isSmallScreen ? 1 : 0, // Espaçamento quando empilhado
+        display: 'flex',
+        flexDirection: isSmallScreen ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: isSmallScreen ? 'flex-start' : 'center',
+        mt: 2,
+        gap: isSmallScreen ? 1 : 0,
       }}>
         <Button
           variant="outlined"
@@ -239,7 +229,6 @@ const KanbanActivityCard = ({ activity }) => {
           sx={{
             color: '#545454',
             borderColor: '#545454',
-            // Ocupa largura total em telas pequenas
             width: isSmallScreen ? '100%' : 'auto',
           }}
         >
@@ -253,20 +242,21 @@ const KanbanActivityCard = ({ activity }) => {
         </CardStatusWrapper>
       </Box>
 
+       {/* Botões condicionais restaurados */}
       <Box sx={{
-          display: 'flex',
-          gap: 1,
-          mt: 2,
-          justifyContent: 'flex-end',
-          // Empilha botões de ação em telas pequenas
-          flexDirection: isSmallScreen ? 'column' : 'row',
-          width: isSmallScreen ? '100%' : 'auto',
+        display: 'flex',
+        gap: 1,
+        mt: 2,
+        justifyContent: 'flex-end',
+        flexDirection: isSmallScreen ? 'column' : 'row',
+        width: isSmallScreen ? '100%' : 'auto',
       }}>
         {activity.status === 'Próximas' && (
           <Button variant="contained" size="small" sx={{
               backgroundColor: '#E6EAED',
               color: '#545454',
-              width: isSmallScreen ? '100%' : 'auto', // Ocupa largura total
+              width: isSmallScreen ? '100%' : 'auto',
+              '&:hover': { backgroundColor: '#d1d6da' }
           }}>
             Iniciar atividade
           </Button>
@@ -275,7 +265,8 @@ const KanbanActivityCard = ({ activity }) => {
           <Button variant="contained" size="small" sx={{
               backgroundColor: '#E6EAED',
               color: '#545454',
-              width: isSmallScreen ? '100%' : 'auto', // Ocupa largura total
+              width: isSmallScreen ? '100%' : 'auto',
+               '&:hover': { backgroundColor: '#d1d6da' }
           }}>
             Concluir atividade
           </Button>
@@ -289,71 +280,55 @@ const KanbanActivityCard = ({ activity }) => {
 // --- Componente Principal KanbanBoard ---
 const KanbanBoard = () => {
   const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm')); // Para a seção de filtros
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [activities, setActivities] = useState([
-    {
-      id: '6283dc8d-229e-4a91-8678-afc9372e705f',
-      title: 'Manutenção Preventiva Bloco C',
-      status: 'Próximas',
-      condominium: 'Condomínio XYZ',
-      budgetStatus: 'sem orçamento',
-      expectedDate: '12/07/2025',
-    },
-    {
-      id: '409c2be3-ef67-42b3-8dd7-6691e5c9f229',
-      title: 'Inspeção de Segurança Predial',
-      status: 'Próximas',
-      condominium: 'Condomínio ABC',
-      budgetStatus: 'aprovado',
-      expectedDate: '15/07/2025',
-    },
-    {
-      id: 'task-003',
-      title: 'Reparo de Portão Eletrônico',
-      status: 'Em andamento',
-      condominium: 'Condomínio Boa Vista',
-      budgetStatus: 'aprovado',
-      expectedDate: '18/07/2025',
-    },
-    {
-      id: 'task-004',
-      title: 'Limpeza de Cisternas',
-      status: 'Pendente',
-      condominium: 'Condomínio Sol Nascente',
-      budgetStatus: 'pendente',
-      expectedDate: '25/07/2025',
-    },
-    {
-      id: 'task-005',
-      title: 'Revisão do Sistema de Incêndio',
-      status: 'Histórico',
-      condominium: 'Condomínio Alto Padrão',
-      budgetStatus: 'aprovado',
-      expectedDate: '01/06/2025',
-    },
-  ]);
+  // Estado com a estrutura correta para react-beautiful-dnd
+  const [columnsData, setColumnsData] = useState({
+    "Próximas": [
+      { id: '6283dc8d-229e-4a91-8678-afc9372e705f', title: 'Manutenção Preventiva Bloco C', status: 'Próximas', condominium: 'Condomínio XYZ', budgetStatus: 'sem orçamento', expectedDate: '12/07/2025' },
+      { id: '409c2be3-ef67-42b3-8dd7-6691e5c9f229', title: 'Inspeção de Segurança Predial', status: 'Próximas', condominium: 'Condomínio ABC', budgetStatus: 'aprovado', expectedDate: '15/07/2025' }
+    ],
+    "Em andamento": [
+      { id: 'task-003', title: 'Reparo de Portão Eletrônico', status: 'Em andamento', condominium: 'Condomínio Boa Vista', budgetStatus: 'aprovado', expectedDate: '18/07/2025' }
+    ],
+    "Pendente": [
+        { id: 'task-004', title: 'Limpeza de Cisternas', status: 'Pendente', condominium: 'Condomínio Sol Nascente', budgetStatus: 'pendente', expectedDate: '25/07/2025' },
+    ],
+    "Histórico": [
+        { id: 'task-005', title: 'Revisão do Sistema de Incêndio', status: 'Histórico', condominium: 'Condomínio Alto Padrão', budgetStatus: 'aprovado', expectedDate: '01/06/2025' },
+    ],
+  });
 
-  const getActivitiesByStatus = (status) => {
-    return activities.filter(activity => activity.status === status);
-  };
+  const columns = [
+    { id: "Próximas", color: "#787878" },
+    { id: "Em andamento", color: "#2d96ff" },
+    { id: "Pendente", color: "#FF5959" },
+    { id: "Histórico", color: "#87E76A" },
+  ];
 
-  const getColumnColor = (status) => {
-    switch (status) {
-      case 'Próximas': return '#787878';
-      case 'Em andamento': return '#2d96ff';
-      case 'Pendente': return '#FF5959';
-      case 'Histórico': return '#87E76A';
-      default: return '#787878';
+  // Lógica onDragEnd mantida
+  const onDragEnd = (result) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+
+    if (source.droppableId === destination.droppableId) {
+      const items = Array.from(columnsData[source.droppableId]);
+      const [moved] = items.splice(source.index, 1);
+      items.splice(destination.index, 0, moved);
+      setColumnsData((prev) => ({ ...prev, [source.droppableId]: items }));
+    } else {
+      const sourceItems = Array.from(columnsData[source.droppableId]);
+      const destItems = Array.from(columnsData[destination.droppableId]);
+      const [moved] = sourceItems.splice(source.index, 1);
+      moved.status = destination.droppableId;
+      destItems.splice(destination.index, 0, moved);
+      setColumnsData((prev) => ({
+        ...prev,
+        [source.droppableId]: sourceItems,
+        [destination.droppableId]: destItems,
+      }));
     }
   };
-
-  const kanbanColumns = [
-    { id: 'next', title: 'Próximas', color: '#787878' },
-    { id: 'ongoing', title: 'Em andamento', color: '#2d96ff' },
-    { id: 'pending', title: 'Pendente', color: '#FF5959' },
-    { id: 'history', title: 'Histórico', color: '#87E76A' },
-  ];
 
   return (
     <KanbanContainer>
@@ -361,6 +336,7 @@ const KanbanBoard = () => {
         Obs: Após recarregar a página, os cards serão mostrados novamente em ordem cronológica
       </Typography>
 
+      {/* Seção de filtros com a lógica de responsividade restaurada */}
       <Box
         sx={{
           display: 'flex',
@@ -368,31 +344,27 @@ const KanbanBoard = () => {
           mb: 3,
           justifyContent: 'space-between',
           alignItems: 'center',
-          // Empilha o chip e o botão de filtros em telas pequenas
           flexDirection: isSmallScreen ? 'column' : 'row',
           alignItems: isSmallScreen ? 'flex-start' : 'center',
-          gap: isSmallScreen ? 2 : 0, // Aumenta o gap em coluna
+          gap: isSmallScreen ? 2 : 0,
         }}
       >
-        {/* Chip de Data */}
         <StyledChip
           label="12/04/2025 - 12/10/2025"
-          clickable // Certifique-se que esta prop está sendo tratada via shouldForwardProp se StyledChip for customizado
+          clickable
           sx={{
-            // Ocupa a largura total e centraliza o texto em telas pequenas
             width: isSmallScreen ? '100%' : 'auto',
             textAlign: isSmallScreen ? 'center' : 'left',
-            mr: isSmallScreen ? 0 : 1, // Remove margin-right quando em coluna
+            mr: isSmallScreen ? 0 : 1,
+            mb: isSmallScreen ? 0 : 2, // Ajuste de margem
           }}
         />
-
-        {/* Botão de Filtros */}
         <Button
           variant="text"
           sx={{
             color: '#EA6037',
-            width: isSmallScreen ? '100%' : 'auto', // Ocupa a largura total em telas pequenas
-            justifyContent: isSmallScreen ? 'center' : 'flex-start', // Centraliza o ícone e texto
+            width: isSmallScreen ? '100%' : 'auto',
+            justifyContent: isSmallScreen ? 'center' : 'flex-start',
           }}
           startIcon={<HomeRepairServiceIcon sx={{ width: 20, height: 20 }} />}
         >
@@ -400,25 +372,39 @@ const KanbanBoard = () => {
         </Button>
       </Box>
 
-      <GridContainer>
-        {kanbanColumns.map(column => (
-          <Column key={column.id}>
-            <ColumnHeaderStatusSpan color={getColumnColor(column.title)}>
-              <ColumnHeaderStatusCircle color={getColumnColor(column.title)} />
-              <Typography>{column.title}</Typography>
-            </ColumnHeaderStatusSpan>
-            {getActivitiesByStatus(column.title).length > 0 ? (
-              getActivitiesByStatus(column.title).map((activity) => (
-                <KanbanActivityCard key={activity.id} activity={activity} />
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-                Não há atividades para mostrar
-              </Typography>
-            )}
-          </Column>
-        ))}
-      </GridContainer>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <GridContainer>
+          {columns.map((col) => (
+            <Droppable droppableId={col.id} key={col.id}>
+              {(provided) => (
+                <Column ref={provided.innerRef} {...provided.droppableProps}>
+                  <ColumnHeaderStatusSpan color={col.color}>
+                    <ColumnHeaderStatusCircle color={col.color} />
+                    <Typography>{col.id}</Typography>
+                  </ColumnHeaderStatusSpan>
+
+                  {columnsData[col.id].length > 0 ? (
+                    columnsData[col.id].map((activity, index) => (
+                      <Draggable key={activity.id} draggableId={activity.id} index={index}>
+                        {(provided) => (
+                          <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                            <KanbanActivityCard activity={activity} />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))
+                  ) : (
+                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+                        Não há atividades para mostrar
+                     </Typography>
+                  )}
+                  {provided.placeholder}
+                </Column>
+              )}
+            </Droppable>
+          ))}
+        </GridContainer>
+      </DragDropContext>
     </KanbanContainer>
   );
 };
