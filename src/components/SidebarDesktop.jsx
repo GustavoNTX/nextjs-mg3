@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import {
-  Drawer, Toolbar, Box, Divider, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useTheme, Menu, MenuItem
+  Drawer, Toolbar, Box, Divider, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useTheme, Collapse
 } from "@mui/material";
+import { ExpandLess, ExpandMore } from "@mui/icons-material"; // Ícones para o dropdown
 import { menuItems } from "@/config/menuItems";
 
 const drawerWidth = 60;
@@ -12,27 +13,14 @@ const expandedDrawerWidth = 240;
 export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave }) {
   const theme = useTheme();
   
-  // Estado para controlar qual submenu está aberto e sua posição
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [openedMenu, setOpenedMenu] = useState(null);
+  // Estado para controlar qual menu dropdown está aberto
+  const [openMenu, setOpenMenu] = useState(null);
 
-  const handleMenuOpen = (event, item) => {
-    if (item.children) {
-      setAnchorEl(event.currentTarget);
-      setOpenedMenu(item.text);
-    }
+  // Função para abrir/fechar o dropdown
+  const handleClick = (itemText) => {
+    // Se o menu clicado já estiver aberto, fecha. Senão, abre.
+    setOpenMenu(openMenu === itemText ? null : itemText);
   };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setOpenedMenu(null);
-  };
-  
-  // Quando o mouse sai da área do Drawer, fecha qualquer submenu aberto
-  const handleDrawerMouseLeave = (event) => {
-    onMouseLeave(event); // Chama a função do pai para recolher a sidebar
-    handleMenuClose();   // Fecha o submenu
-  }
 
   const drawerContent = (
     <>
@@ -42,10 +30,11 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
       <Divider />
       <List>
         {menuItems.map((item) => (
-          <div key={item.text} onMouseLeave={item.children ? null : handleMenuClose}>
+          <React.Fragment key={item.text}>
             <ListItem disablePadding>
               <ListItemButton
-                onMouseEnter={(e) => handleMenuOpen(e, item)}
+                // O clique agora abre o dropdown se houver sub-itens
+                onClick={() => item.children && handleClick(item.text)}
                 sx={{
                   "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 }
                 }}
@@ -63,31 +52,25 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
                     }),
                   }}
                 />
+                {/* Mostra o ícone de seta se houver sub-itens e a sidebar estiver expandida */}
+                {item.children && expanded && (openMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
               </ListItemButton>
             </ListItem>
 
+            {/* Submenu com Collapse (Dropdown) */}
             {item.children && (
-              <Menu
-                anchorEl={anchorEl}
-                // O menu abre se o 'openedMenu' for o texto deste item
-                open={openedMenu === item.text}
-                onClose={handleMenuClose}
-                // Fecha o menu quando o mouse sai da sua área
-                MenuListProps={{ onMouseLeave: handleMenuClose }}
-                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                // Impede que o foco automático role a página
-                disableRestoreFocus 
-              >
-                {item.children.map((child) => (
-                  <MenuItem key={child.text} onClick={handleMenuClose}>
-                    <ListItemIcon>{child.icon}</ListItemIcon>
-                    <ListItemText>{child.text}</ListItemText>
-                  </MenuItem>
-                ))}
-              </Menu>
+              <Collapse in={openMenu === item.text && expanded} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                  {item.children.map((child) => (
+                    <ListItemButton key={child.text} sx={{ pl: 4 }}> {/* Adiciona um padding para indentar */}
+                      <ListItemIcon>{child.icon}</ListItemIcon>
+                      <ListItemText primary={child.text} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Collapse>
             )}
-          </div>
+          </React.Fragment>
         ))}
       </List>
     </>
@@ -98,8 +81,7 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
       variant="permanent"
       open
       onMouseEnter={onMouseEnter}
-      // Usamos o novo handler para garantir que o submenu feche também
-      onMouseLeave={handleDrawerMouseLeave}
+      onMouseLeave={onMouseLeave} // Mantém a lógica de expandir/recolher
       sx={{
         width: expanded ? expandedDrawerWidth : drawerWidth,
         flexShrink: 0,
