@@ -70,7 +70,7 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
     // router.push('/cronograma');
     
     // Para a sua URL específica:
-    router.push('http://192.168.229.130:3001/cronograma');
+    router.push('/cronograma');
   };
 
   return (

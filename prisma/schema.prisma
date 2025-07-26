@@ -1,0 +1,38 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Condominio {
+  id           String    @id @default(uuid())
+  name         String
+  cnpj         String? // O '?' indica que este campo é opcional
+  address      String
+  neighborhood String
+  city         String
+  state        String
+  type         String    // Ex: "Residencial" ou "Comercial"
+  imageUrl     String?   // Opcional para a foto
+
+  // --- Campos Padrão para Gerenciamento ---
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // --- Relacionamento (Bônus, baseado no seu formulário) ---
+  // Para o campo "Condomínio de referência"
+  referenceId  String?
+  reference    Condominio? @relation("CondominioReferencia", fields: [referenceId], references: [id])
+  referencedBy Condominio[]  @relation("CondominioReferencia")
+}
