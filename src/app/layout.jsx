@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Manu Help | Plataforma de Gestão de Manutenção",
+  title: "GMP + | Plataforma de Gestão de Manutenção",
   description: "Sistema de gestão de condomínios e manutenção predial.",
 };
 
