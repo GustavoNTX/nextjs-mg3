@@ -24,7 +24,7 @@ import Layout from "@/components/Layout";
 // Importe os componentes de visualização
 import ListaAtividades from "@/components/ListaAtividades";
 import KanbanBoard from "@/components/KanbanBoard";
-import CalendarView from "@/components/CalendarView"; // <--- Importe o novo componente de calendário
+import CalendarView from "@/components/CalendarView";
 
 export default function CronogramaPage() {
   const [currentTab, setCurrentTab] = useState(0); // Inicia na aba "LISTA"

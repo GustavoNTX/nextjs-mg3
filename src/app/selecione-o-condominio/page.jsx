@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Typography, Button, Grid, Stack } from "@mui/material";
+import { Box, Typography, Button, Grid, Stack, Popover } from "@mui/material";
 import { Add as AddIcon, GetApp as GetAppIcon } from "@mui/icons-material";
 import Layout from "@/components/Layout";
 import AddCondominioDialog from "@/components/AddCondominioDialog";
@@ -48,6 +48,7 @@ export default function SelecioneOCondominioPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCondo, setSelectedCondo] = useState(null);
+  const [reportAnchorEl, setReportAnchorEl] = useState(null);
 
   const handleEdit = (condo) => {
     setSelectedCondo(condo);
@@ -69,9 +70,25 @@ export default function SelecioneOCondominioPage() {
     setEditDialogOpen(false);
   };
 
+  const handleReportClick = (event) => {
+    setReportAnchorEl(event.currentTarget);
+  };
+
+  const handleReportClose = () => {
+    setReportAnchorEl(null);
+  };
+
+  // Placeholder para as ações de exportação
+  const handleExport = (format) => {
+    console.log(`Exportando relatório como ${format}...`);
+    handleReportClose(); // Fecha o popover após a seleção
+  };
+
+  const isReportPopoverOpen = Boolean(reportAnchorEl);
+  const reportPopoverId = isReportPopoverOpen ? 'report-popover' : undefined;
+
   return (
     <Layout>
-      {/* <<< MUDANÇA AQUI: Adicionado Box com padding responsivo */}
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         {/* Ações */}
         <Stack
@@ -85,7 +102,6 @@ export default function SelecioneOCondominioPage() {
             startIcon={<AddIcon />}
             variant="contained"
             onClick={() => setAddDialogOpen(true)}
-            // <<< MUDANÇA AQUI: Botão com largura responsiva
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Adicionar condomínio
@@ -94,7 +110,8 @@ export default function SelecioneOCondominioPage() {
             startIcon={<GetAppIcon />}
             variant="outlined"
             color="secondary"
-            // <<< MUDANÇA AQUI: Botão com largura responsiva
+            onClick={handleReportClick} // Aciona a abertura
+            aria-describedby={reportPopoverId} // Para acessibilidade
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Extrair Relatório
@@ -123,6 +140,28 @@ export default function SelecioneOCondominioPage() {
           )}
         </Grid>
       </Box>
+
+      <Popover
+        id={reportPopoverId}
+        open={isReportPopoverOpen}
+        anchorEl={reportAnchorEl}
+        onClose={handleReportClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <Box sx={{ p: 1 }}>
+          <Stack>
+            <Button onClick={() => handleExport('CSV')} sx={{ color: 'text.primary' }}>CSV</Button>
+            <Button onClick={() => handleExport('PDF')} sx={{ color: 'text.primary' }}>PDF</Button>
+          </Stack>
+        </Box>
+      </Popover>
 
       {/* Diálogos */}
       <AddCondominioDialog
