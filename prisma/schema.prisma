@@ -10,28 +10,28 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://postgres:postgres@localhost:5432/meu_banco?schema=public"
 }
 
-
 model Condominio {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   name         String
-  cnpj         String? // O '?' indica que este campo é opcional
+  cnpj         String?  @unique
   address      String
   neighborhood String
   city         String
   state        String
-  type         String    // Ex: "Residencial" ou "Comercial"
-  imageUrl     String?   // Opcional para a foto
+  type         String
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  // --- Campos Padrão para Gerenciamento ---
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  // --- Relacionamento (Bônus, baseado no seu formulário) ---
-  // Para o campo "Condomínio de referência"
+  // auto-referência: um condomínio referencia outro
   referenceId  String?
-  reference    Condominio? @relation("CondominioReferencia", fields: [referenceId], references: [id])
-  referencedBy Condominio[]  @relation("CondominioReferencia")
+  reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull)
+  referencedBy Condominio[] @relation(name: "CondominioReferencia")
+
+  @@index([city, state])
+  @@index([name])
+  @@index([referenceId])
 }

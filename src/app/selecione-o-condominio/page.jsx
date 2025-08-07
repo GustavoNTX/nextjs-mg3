@@ -1,50 +1,26 @@
-// src/app/selecione-o-condominio/page.jsx
 "use client";
 
-import { useState } from "react";
 import { Box, Typography, Button, Grid, Stack } from "@mui/material";
 import { Add as AddIcon, GetApp as GetAppIcon } from "@mui/icons-material";
 import Layout from "@/components/Layout";
 import AddCondominioDialog from "@/components/AddCondominioDialog";
 import CondominioCard from "@/components/CondominioCard";
 import EditCondominioDialog from "@/components/EditCondominioDialog";
+import {
+  CondominiosProvider,
+  useCondominios,
+} from "@/contexts/CondominiosContext";
+import { useState } from "react";
 
-const condominiosMock = [
-  // ...seus dados de exemplo
-  {
-    id: 1,
-    name: "Residencial Jardins",
-    cnpj: "11.111.111/0001-11",
-    address: "Rua das Flores, 123, São Paulo",
-    neighborhood: "Jardins",
-    type: "Residencial",
-    imageUrl:
-      "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop",
-  },
-  {
-    id: 2,
-    name: "Business Tower",
-    cnpj: "22.222.222/0001-22",
-    address: "Av. Principal, 456, Rio de Janeiro",
-    neighborhood: "Centro",
-    type: "Comercial",
-    imageUrl:
-      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=2070&auto=format&fit=crop",
-  },
-  {
-    id: 3,
-    name: "Condomínio Central",
-    cnpj: "33.333.333/0001-33",
-    address: "Praça da Cidade, 789, Belo Horizonte",
-    neighborhood: "Savassi",
-    type: "Residencial",
-    imageUrl:
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop",
-  },
-];
-
-export default function SelecioneOCondominioPage() {
-  const [condominios, setCondominios] = useState(condominiosMock);
+function PageInner() {
+  const {
+    items: condominios,
+    create,
+    update,
+    remove,
+    loading,
+    error,
+  } = useCondominios();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCondo, setSelectedCondo] = useState(null);
@@ -53,27 +29,25 @@ export default function SelecioneOCondominioPage() {
     setSelectedCondo(condo);
     setEditDialogOpen(true);
   };
-  const handleSaveNew = (data) => {
-    const newCondominio = { ...data, id: condominios.length + 1 };
-    setCondominios((prev) => [...prev, newCondominio]);
+
+  const handleSaveNew = async (data) => {
+    await create(data);
     setAddDialogOpen(false);
   };
-  const handleSaveEdit = (updatedData) => {
-    setCondominios((prev) =>
-      prev.map((c) => (c.id === updatedData.id ? updatedData : c))
-    );
+
+  const handleSaveEdit = async (updatedData) => {
+    await update(updatedData.id, updatedData);
     setEditDialogOpen(false);
   };
-  const handleDelete = (condoId) => {
-    setCondominios((prev) => prev.filter((c) => c.id !== condoId));
+
+  const handleDelete = async (condoId) => {
+    await remove(condoId);
     setEditDialogOpen(false);
   };
 
   return (
-    <Layout>
-      {/* <<< MUDANÇA AQUI: Adicionado Box com padding responsivo */}
+    <>
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
-        {/* Ações */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
@@ -85,8 +59,7 @@ export default function SelecioneOCondominioPage() {
             startIcon={<AddIcon />}
             variant="contained"
             onClick={() => setAddDialogOpen(true)}
-            // <<< MUDANÇA AQUI: Botão com largura responsiva
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
+            sx={{ width: { xs: "100%", sm: "auto" } }}
           >
             Adicionar condomínio
           </Button>
@@ -94,37 +67,46 @@ export default function SelecioneOCondominioPage() {
             startIcon={<GetAppIcon />}
             variant="outlined"
             color="secondary"
-            // <<< MUDANÇA AQUI: Botão com largura responsiva
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
+            sx={{ width: { xs: "100%", sm: "auto" } }}
           >
             Extrair Relatório
           </Button>
         </Stack>
 
-        {/* Grid de Condomínios */}
-        <Grid container spacing={3}>
-          {condominios.length > 0 ? (
-            condominios.map((condominio) => (
-              <Grid item key={condominio.id} xs={12} sm={6} md={4}>
-                <CondominioCard {...condominio} onEdit={handleEdit} />
+        {loading ? (
+          <Box sx={{ textAlign: 'center', width: '100%', mt: 8 }}>
+
+            <Typography>Carregando...</Typography>
+          </Box>
+        ) : error ? (
+          <Box sx={{ textAlign: 'center', width: '100%', mt: 8 }}>
+
+            <Typography color="error">{error}</Typography>
+          </Box>
+        ) : (
+          <Grid container spacing={3}>
+            {condominios.length > 0 ? (
+              condominios.map((condominio) => (
+                <Grid item key={condominio.id} xs={12} sm={6} md={4}>
+                  <CondominioCard {...condominio} onEdit={handleEdit} />
+                </Grid>
+              ))
+            ) : (
+              <Grid item xs={12}>
+                <Box textAlign="center" mt={8}>
+                  <Typography variant="h6" color="text.secondary">
+                    Não há condomínios para mostrar
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    Clique em "Adicionar condomínio" para começar.
+                  </Typography>
+                </Box>
               </Grid>
-            ))
-          ) : (
-            <Grid item xs={12}>
-              <Box textAlign="center" mt={8}>
-                <Typography variant="h6" color="text.secondary">
-                  Não há condomínios para mostrar
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Clique em "Adicionar condomínio" para começar.
-                </Typography>
-              </Box>
-            </Grid>
-          )}
-        </Grid>
+            )}
+          </Grid>
+        )}
       </Box>
 
-      {/* Diálogos */}
       <AddCondominioDialog
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
@@ -139,6 +121,16 @@ export default function SelecioneOCondominioPage() {
           condominio={selectedCondo}
         />
       )}
+    </>
+  );
+}
+
+export default function SelecioneOCondominioPage() {
+  return (
+    <Layout>
+      <CondominiosProvider>
+        <PageInner />
+      </CondominiosProvider>
     </Layout>
   );
 }

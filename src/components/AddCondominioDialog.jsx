@@ -1,7 +1,8 @@
 // src/components/AddCondominioDialog.jsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 import {
   Dialog,
   DialogContent,
@@ -25,18 +26,28 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 
+const INITIAL_VALUES = {
+  name: "",
+  cnpj: "",
+  address: "",
+  neighborhood: "",
+  state: "",
+  city: "",
+  type: "",
+  reference: "",
+};
+
 export default function AddCondominioDialog({ open, onClose, onSave }) {
-  const [values, setValues] = useState({
-    name: "",
-    cnpj: "",
-    address: "",
-    neighborhood: "",
-    state: "",
-    city: "",
-    type: "",
-    reference: "",
-  });
+  const [values, setValues] = useState(INITIAL_VALUES);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setValues(INITIAL_VALUES);
+      setErrors({});
+    }
+  }, [open]);
 
   const handleChange = (field) => (e) => {
     setValues((v) => ({ ...v, [field]: e.target.value }));
@@ -45,7 +56,14 @@ export default function AddCondominioDialog({ open, onClose, onSave }) {
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleClose = () => {
+    // (Opcional) limpar também ao cancelar/fechar
+    setValues(INITIAL_VALUES);
+    setErrors({});
+    onClose();
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const newErrors = {};
     const requiredFields = [
@@ -56,23 +74,33 @@ export default function AddCondominioDialog({ open, onClose, onSave }) {
       "city",
       "type",
     ];
-
-    requiredFields.forEach((field) => {
-      if (!values[field]?.trim()) {
-        newErrors[field] = "Este campo é obrigatório";
-      }
+    requiredFields.forEach((f) => {
+      if (!values[f]?.trim()) newErrors[f] = "Este campo é obrigatório";
     });
-
-    if (Object.keys(newErrors).length > 0) {
+    if (Object.keys(newErrors).length) {
       setErrors(newErrors);
       return;
     }
-    onSave(values);
-    onClose();
+
+    try {
+      setSubmitting(true);
+      await onSave({ ...values, referenceId: values.reference || null });
+
+      // 🔑 sempre limpar após salvar
+      setValues(INITIAL_VALUES);
+      setErrors({});
+
+      // se quiser continuar com o modal aberto para "cadastrar outro", remova esta linha:
+      onClose();
+    } catch (e) {
+      setErrors((err) => ({ ...err, form: e.message || "Falha ao salvar" }));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       <Box
         sx={{
           display: "flex",
@@ -299,19 +327,11 @@ export default function AddCondominioDialog({ open, onClose, onSave }) {
         <Divider />
 
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} variant="outlined" color="secondary">
+          <Button onClick={handleClose} variant="outlined" color="secondary">
             Cancelar
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            onClick={() => {
-              // opcional: validações aqui também
-              onSave(values);
-              onClose();
-            }}
-          >
-            Salvar
+          <Button type="submit" variant="contained" disabled={submitting}>
+            {submitting ? "Salvando..." : "Salvar"}
           </Button>
         </DialogActions>
       </Box>
