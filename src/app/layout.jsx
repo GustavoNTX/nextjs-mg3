@@ -1,6 +1,7 @@
 // src/app/layout.jsx
 import { Geist, Geist_Mono } from "next/font/google";
-import "../styles/globals.css"; // Ajustei o caminho relativo
+import "../styles/globals.css";
+import "../styles/swagger-ui.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

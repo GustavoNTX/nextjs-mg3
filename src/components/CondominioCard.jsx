@@ -13,7 +13,7 @@ import EditIcon from '@mui/icons-material/Edit';
 
 // O componente recebe as props individuais e a função onEdit
 export default function CondominioCard({ id, imageUrl, name, address, type, cnpj, onEdit }) {
-
+console.log(id, imageUrl, name, address, type, cnpj, onEdit)
   const handleEditClick = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -38,7 +38,7 @@ export default function CondominioCard({ id, imageUrl, name, address, type, cnpj
                 className="media"
                 component="img"
                 height="140"
-                image={imageUrl || 'https://via.placeholder.com/300x140?text=Sem+Imagem'}
+                image={imageUrl === null ? 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop' : imageUrl}
                 alt={`Foto do ${name}`}
                 sx={{ transition: 'opacity 0.3s ease-in-out' }}
             />
