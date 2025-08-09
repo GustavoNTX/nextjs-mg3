@@ -1,66 +1,66 @@
-// src/app/login/page.jsx
+// src/app/cadastro/page.jsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   TextField,
   Button,
-  IconButton,
-  InputAdornment,
-  Divider,
   Box,
   Typography,
+  Divider,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
-import { useRouter } from "next/navigation";
-
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function LoginPage() {
+export default function RegisterPage() {
+  const router = useRouter();
   const { login } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
+
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
 
-  const handleClickShowPassword = () => {
-    setShowPassword(!showPassword);
-  };
+  const handleClickShowPassword = () => setShowPassword((v) => !v);
+  const handleMouseDownPassword = (event) => event.preventDefault();
 
-  const handleMouseDownPassword = (event) => {
+  const handleRegister = async (event) => {
     event.preventDefault();
-  };
+    setError("");
 
-  const handleLogin = async () => {
-    setError(""); // Limpa erros anteriores
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Falha no login");
+        throw new Error(data.error || "Falha ao criar conta.");
       }
 
-      // Se o login for bem-sucedido, chama a função do contexto
+      // login automático após cadastro
       login(data);
     } catch (err) {
-      setError(err.message); // Exibe a mensagem de erro da API
+      setError(err.message);
       console.error(err);
     }
   };
 
-  const handleCreatAccout = async () => {
-    setError(""); // Limpa erros anteriores
+  const handleReturnLogin = (event) => {
+    event.preventDefault();
+    setError("");
     try {
-      router.push("/cadastro");
+      router.push("/login");
     } catch (err) {
-      setError(err.message); // Exibe a mensagem de erro da API
+      setError(err.message);
       console.error(err);
     }
   };
@@ -74,8 +74,9 @@ export default function LoginPage() {
         backgroundColor: "#f5f5f5",
       }}
     >
-      {/* Lado esquerdo: Formulário */}
       <Box
+        component="form"
+        onSubmit={handleRegister}
         sx={{
           flex: 1,
           padding: { xs: 4, md: 6 },
@@ -86,26 +87,34 @@ export default function LoginPage() {
           backgroundColor: "#ffffff",
         }}
       >
-        {/* Logo */}
-        <Box mb={4}>
+        <Box mb={2}>
           <img src="/simple-logo.png" alt="Logo" style={{ width: 100 }} />
         </Box>
+        <Typography variant="h5" sx={{ mb: 2, fontWeight: "bold" }}>
+          Crie sua conta
+        </Typography>
 
-        {/* Inputs */}
+        <TextField
+          placeholder="Digite seu nome completo"
+          variant="outlined"
+          fullWidth
+          margin="normal"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          sx={{ maxWidth: 400 }}
+        />
+
         <TextField
           placeholder="Digite seu e-mail"
+          type="email"
           variant="outlined"
           fullWidth
           margin="normal"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          sx={{
-            maxWidth: 400,
-            borderRadius: 1,
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-            },
-          }}
+          required
+          sx={{ maxWidth: 400 }}
         />
 
         <TextField
@@ -116,13 +125,8 @@ export default function LoginPage() {
           margin="normal"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          sx={{
-            maxWidth: 400,
-            borderRadius: 1,
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-            },
-          }}
+          required
+          sx={{ maxWidth: 400 }}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
@@ -139,79 +143,46 @@ export default function LoginPage() {
           }}
         />
 
-        {/* CORREÇÃO: Bloco para exibir a mensagem de erro */}
         {error && (
-          <Typography
-            color="error"
-            sx={{ mt: 2, maxWidth: 400, textAlign: "center" }}
-          >
+          <Typography color="error" sx={{ mt: 2 }}>
             {error}
           </Typography>
         )}
 
-        {/* Botão Entrar */}
         <Button
+          type="submit"
           variant="contained"
           fullWidth
           sx={{
             mt: 3,
-            mb: 1,
+            mb: 2,
             backgroundColor: "#545454",
             color: "#ffffff",
-            textTransform: "uppercase",
             fontWeight: "bold",
             maxWidth: 400,
             borderRadius: 2,
             padding: "10px 0",
             "&:hover": { backgroundColor: "#333" },
           }}
-          onClick={handleLogin}
         >
-          ENTRAR
+          CADASTRAR
         </Button>
 
-        {/* Esqueci minha senha */}
+        <Divider sx={{ my: 2, width: "100%", maxWidth: 400 }}>OU</Divider>
         <Button
-          variant="text"
+          variant="outlined"
           fullWidth
           sx={{
-            color: "#FF5959",
-            textTransform: "uppercase",
-            fontWeight: "bold",
-            mt: 1,
-            maxWidth: 400,
-          }}
-        >
-          Esqueci minha senha
-        </Button>
-
-        {/* OU */}
-        <Divider sx={{ my: 3, width: "100%", maxWidth: 400, color: "#BDBDBD" }}>
-          OU
-        </Divider>
-
-        {/* Botão Criar Conta */}
-        <Button
-          variant="contained"
-          fullWidth
-          sx={{
-            backgroundColor: "#FFFFFF",
-            color: "#000000",
-            border: "1px solid #C4C4C4",
-            textTransform: "uppercase",
-            fontWeight: "bold",
             maxWidth: 400,
             borderRadius: 2,
             padding: "10px 0",
-            "&:hover": { backgroundColor: "#f0f0f0" },
           }}
-          onClick={handleCreatAccout}
+          onClick={handleReturnLogin}
         >
-          NÃO TENHO UMA CONTA
+          JÁ TENHO UMA CONTA
         </Button>
       </Box>
 
-      {/* Lado direito: Imagem */}
       <Box
         sx={{
           flex: 1,

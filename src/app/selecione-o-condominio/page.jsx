@@ -11,6 +11,7 @@ import {
   useCondominios,
 } from "@/contexts/CondominiosContext";
 import { useState } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 function PageInner() {
   const {
@@ -74,13 +75,11 @@ function PageInner() {
         </Stack>
 
         {loading ? (
-          <Box sx={{ textAlign: 'center', width: '100%', mt: 8 }}>
-
+          <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
             <Typography>Carregando...</Typography>
           </Box>
         ) : error ? (
-          <Box sx={{ textAlign: 'center', width: '100%', mt: 8 }}>
-
+          <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
             <Typography color="error">{error}</Typography>
           </Box>
         ) : (
@@ -92,7 +91,7 @@ function PageInner() {
                 </Grid>
               ))
             ) : (
-              <Grid item xs={12}>
+              <Grid sx={{ textAlign: "center", width: "100%", mt: 8 }} item xs={12}>
                 <Box textAlign="center" mt={8}>
                   <Typography variant="h6" color="text.secondary">
                     Não há condomínios para mostrar
@@ -127,10 +126,12 @@ function PageInner() {
 
 export default function SelecioneOCondominioPage() {
   return (
-    <Layout>
-      <CondominiosProvider>
-        <PageInner />
-      </CondominiosProvider>
-    </Layout>
+    <ProtectedRoute>
+      <Layout>
+        <CondominiosProvider>
+          <PageInner />
+        </CondominiosProvider>
+      </Layout>
+    </ProtectedRoute>
   );
 }
