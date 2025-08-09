@@ -17,8 +17,14 @@ export default function LoginPage() {
     event.preventDefault();
   };
 
-  const handleLogin = () => {
-    console.log('Login', { email, password });
+  const handleLogin = async () => {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    console.log(data);
   };
 
   return (
@@ -160,7 +166,7 @@ export default function LoginPage() {
             flex: 1,
             backgroundImage: 'url(/town-image.svg)',
             backgroundRepeat: 'no-repeat',
-            backgroundSize: { xs: 'contain', md: 'cover' },  // <- Aqui é o truque!
+            backgroundSize: { xs: 'contain', md: 'cover' },
             backgroundPosition: 'center',
             height: { xs: 250, md: 'auto' },
             minHeight: { xs: 250, md: '100vh' },

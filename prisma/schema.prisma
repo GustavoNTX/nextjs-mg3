@@ -1,8 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -13,25 +11,60 @@ datasource db {
   url      = "postgresql://postgres:postgres@localhost:5432/meu_banco?schema=public"
 }
 
-model Condominio {
-  id           String   @id @default(uuid())
-  name         String
-  cnpj         String?  @unique
-  address      String
-  neighborhood String
-  city         String
-  state        String
-  type         String
-  imageUrl     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+//
+// ─────────────────────────────  MODELS  ─────────────────────────────
+//
 
-  // auto-referência: um condomínio referencia outro
+model Condominio {
+  id String @id @default(uuid())
+
+  // Defina tamanhos razoáveis p/ índices ficarem mais eficientes
+  name         String  @db.VarChar(120)
+  cnpj         String? @unique // Postgres permite vários NULLs; garante unicidade quando preenchido
+  address      String  @db.VarChar(160)
+  neighborhood String  @db.VarChar(80)
+  city         String  @db.VarChar(80)
+  state        String  @db.VarChar(2) // Ex.: "CE", "SP"
+  type         String  @db.VarChar(30)
+  imageUrl     String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auto-referência (pai/filho de condomínio)
   referenceId  String?
-  reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull)
+  reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   referencedBy Condominio[] @relation(name: "CondominioReferencia")
 
+  // Opcional: evita duplicatas exatas por "nome+cidade+estado"
+  // @@unique([name, city, state])
+
+  // ── ÍNDICES ────────────────────────────────────────────────────────
   @@index([city, state])
+  @@index([state]) // útil se pesquisar só por estado
   @@index([name])
   @@index([referenceId])
+}
+
+model User {
+  id    String  @id @default(uuid())
+  email String  @unique
+  name  String? @db.VarChar(120)
+
+  // Defina tamanho do hash pra evitar lixo; 60 cobre bcrypt, 95+ cobre argon2id.
+  passwordHash String @db.VarChar(255)
+
+  // Opcional: papéis simples (enum abaixo)
+  role Role @default(USER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Se quiser rastrear autoria dos condomínios, descomente no Condominio também ──
+  // condominios Criados Condominio[] @relation("CondominioCreatedBy")
+}
+
+enum Role {
+  USER
+  ADMIN
 }
