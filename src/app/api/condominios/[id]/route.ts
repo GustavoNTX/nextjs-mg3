@@ -1,22 +1,12 @@
-// app/api/condominios/[id]/route.ts
+// app/api/condominios/route.ts
 import prisma from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
-
-// (opcional) se quiser tratar P2025 com tipo:
-import { Prisma } from '@prisma/client'
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
 
-// --- Tipos do contexto (Next 15: params é Promise) ---
-type Ctx<T> = { params: Promise<T> }
-
-// --- Schemas de validação ---
-const idSchema = z.object({
-  id: z.string().min(1, 'id obrigatório'),
-})
+// --- Schemas de validação e Helpers (pode ser movido para um arquivo compartilhado) ---
 
 // helper para strings opcionais/aceitam '' -> null
 const nullable = () =>
@@ -27,58 +17,31 @@ const nullable = () =>
 
 const bodySchema = z.object({
   name: z.string().min(1, 'name obrigatório'),
-  cnpj: nullable(),            // aceita string, null, undefined e '' (vira null)
+  cnpj: nullable(),
   address: z.string().min(1, 'address obrigatório'),
   neighborhood: z.string().min(1, 'neighborhood obrigatório'),
   city: z.string().min(1, 'city obrigatório'),
   state: z.string().min(2, 'state obrigatório'),
   type: z.string().min(1, 'type obrigatório'),
-  imageUrl: nullable(),        // se quiser forçar URL válida, troque por z.string().url() | null
+  imageUrl: nullable(),
   referenceId: nullable(),
 })
 
-// --- Helpers ---
-function badRequest(payload: any) {
-  return NextResponse.json(payload, { status: 400 })
-}
+// Funções de resposta
 function unprocessable(payload: any) {
   return NextResponse.json(payload, { status: 422 })
 }
-function notFound(msg = 'Não encontrado') {
-  return NextResponse.json({ error: msg }, { status: 404 })
+function badRequest(payload: any) {
+  return NextResponse.json(payload, { status: 400 })
 }
 function serverError(msg = 'Erro interno') {
   return NextResponse.json({ error: msg }, { status: 500 })
 }
 
-// --- GET /api/condominios/[id] ---
-export async function GET(_req: Request, ctx: Ctx<{ id: string }>) {
-  const parsedParams = idSchema.safeParse(await ctx.params)
-  if (!parsedParams.success) {
-    return badRequest({ error: 'Parâmetros inválidos', issues: parsedParams.error.flatten() })
-  }
-  const { id } = parsedParams.data
 
-  try {
-    const item = await prisma.condominio.findUnique({
-      where: { id },
-      include: { reference: { select: { id: true, name: true } } },
-    })
-    if (!item) return notFound()
-    return NextResponse.json(item)
-  } catch {
-    return serverError()
-  }
-}
-
-// --- PUT /api/condominios/[id] ---
-export async function PUT(req: Request, ctx: Ctx<{ id: string }>) {
-  const parsedParams = idSchema.safeParse(await ctx.params)
-  if (!parsedParams.success) {
-    return badRequest({ error: 'Parâmetros inválidos', issues: parsedParams.error.flatten() })
-  }
-  const { id } = parsedParams.data
-
+// --- POST /api/condominios ---
+// Função para CRIAR um novo condomínio
+export async function POST(req: Request) {
   let json: unknown
   try {
     json = await req.json()
@@ -86,11 +49,13 @@ export async function PUT(req: Request, ctx: Ctx<{ id: string }>) {
     return badRequest({ error: 'Body inválido: JSON malformado' })
   }
 
+  // 1. Validar o corpo da requisição com o Zod
   const parsedBody = bodySchema.safeParse(json)
   if (!parsedBody.success) {
     return unprocessable({ error: 'Validação falhou', issues: parsedBody.error.flatten() })
   }
 
+  // 2. Preparar os dados para o banco de dados
   const data = {
     name: parsedBody.data.name,
     cnpj: parsedBody.data.cnpj ?? null,
@@ -103,33 +68,29 @@ export async function PUT(req: Request, ctx: Ctx<{ id: string }>) {
     referenceId: parsedBody.data.referenceId ?? null,
   }
 
+  // 3. Tentar criar o registro no Prisma
   try {
-    const upd = await prisma.condominio.update({ where: { id }, data })
-    return NextResponse.json(upd)
+    const newItem = await prisma.condominio.create({ data })
+    // Retorna o item criado com status 201 (Created)
+    return NextResponse.json(newItem, { status: 201 }) 
   } catch (e) {
-    if (e instanceof PrismaClientKnownRequestError && e.code === 'P2025') {
-      // registro não encontrado para update
-      return notFound()
-    }
-    return serverError()
+    console.error('Erro ao criar condomínio:', e) // Logar o erro no servidor ajuda a debugar
+    return serverError('Não foi possível criar o condomínio.')
   }
 }
 
-// --- DELETE /api/condominios/[id] ---
-export async function DELETE(_req: Request, ctx: Ctx<{ id: string }>) {
-  const parsedParams = idSchema.safeParse(await ctx.params)
-  if (!parsedParams.success) {
-    return badRequest({ error: 'Parâmetros inválidos', issues: parsedParams.error.flatten() })
-  }
-  const { id } = parsedParams.data
-
-  try {
-    await prisma.condominio.delete({ where: { id } })
-    return NextResponse.json({ ok: true })
-  } catch (e) {
-    if (e instanceof PrismaClientKnownRequestError && e.code === 'P2025') {
-      return notFound()
+// (Opcional) --- GET /api/condominios ---
+// Função para LISTAR todos os condomínios
+export async function GET() {
+    try {
+        const items = await prisma.condominio.findMany({
+            orderBy: {
+                name: 'asc'
+            }
+        });
+        return NextResponse.json(items);
+    } catch (e) {
+        console.error('Erro ao listar condomínios:', e)
+        return serverError('Não foi possível buscar os condomínios.')
     }
-    return serverError()
-  }
 }
