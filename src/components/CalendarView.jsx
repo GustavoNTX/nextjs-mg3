@@ -10,16 +10,19 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Paper,
-  useTheme,     // Importe useTheme para acessar os breakpoints
-  useMediaQuery // Importe useMediaQuery para detectar o tamanho da tela
+  Button,
+  useTheme,
+  useMediaQuery,
+  Divider,
 } from "@mui/material";
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Edit as EditIcon,
+  Share as ShareIcon,
 } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
 
-// Importações do FullCalendar
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -27,141 +30,174 @@ import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
 
-// Wrapper estilizado para o FullCalendar
-const StyledCalendarWrapper = styled('div')(({ theme }) => ({
-  // Estilos gerais
-  '.fc': {
-    fontFamily: theme.typography.fontFamily,
-  },
-  // Estilo para os botões do header (se estivessem habilitados)
-  '.fc .fc-button': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.primary.contrastText,
-    border: 'none',
-    '&:hover': {
-      backgroundColor: theme.palette.primary.dark,
-    },
-  },
-  // Estilo para bordas da tabela
-  '.fc .fc-scrollgrid, .fc .fc-list': {
-    borderColor: theme.palette.divider,
-  },
-  // Estilo para os cabeçalhos dos dias (Seg, Ter, Qua...)
-  '.fc .fc-col-header-cell-cushion': {
-    color: theme.palette.text.secondary,
-    fontWeight: theme.typography.fontWeightMedium,
-  },
-  // Estilo para o dia de hoje
-  '.fc .fc-day-today': {
-    backgroundColor: theme.palette.action.hover,
-  },
-  // Estilo para eventos
-  '.fc-event': {
-    border: 'none',
-    padding: '2px 4px',
-    fontSize: '0.75rem',
-  },
+const StyledCalendarWrapper = styled("div")(({ theme }) => ({
+  ".fc": { fontFamily: theme.typography.fontFamily },
+  ".fc-event": { border: "none", padding: "2px 4px", fontSize: "0.75rem" },
 }));
 
-// Eventos mockados para o calendário
+// Eventos mockados
 const mockEvents = [
-    { title: "Manutenção Preventiva - Bloco A", date: "2025-07-10" },
-    { title: "Assembleia Geral", date: "2025-07-15", color: "#EA6037" },
-    { title: "Limpeza da Caixa D'água", start: "2025-07-20", end: "2025-07-22", backgroundColor: "#3788d8" },
-    { title: "Inspeção de Telhado", date: "2025-07-28" },
-    { title: "Dedetização Área Comum", date: "2025-08-05", color: "#6a1b9a" },
+  {
+    id: "1",
+    title: "Manutenção Preventiva - Bloco A",
+    date: "2025-08-02",
+    tags: ["Condomínio", "Melhoria", "sem orçamento"],
+    priority: "low",
+    status: "a fazer",
+  },
+  {
+    id: "2",
+    title: "Assembleia Geral",
+    date: "2025-08-02",
+    tags: ["Condomínio", "Reunião"],
+    priority: "medium",
+    status: "em andamento",
+  },
 ];
 
-const CalendarView = () => {
+export default function CalendarView() {
   const [calendarTitle, setCalendarTitle] = useState("");
   const [currentView, setCurrentView] = useState("dayGridMonth");
+  const [selectedDate, setSelectedDate] = useState(null);
+
   const calendarRef = useRef(null);
+  const detailsRef = useRef(null);
 
   const theme = useTheme();
-  // Detecta se a tela é pequena (por exemplo, abaixo de 'md')
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("md"));
 
   useEffect(() => {
-    const calendarApi = calendarRef.current?.getApi();
-    if (calendarApi) {
-      calendarApi.changeView(currentView);
-    }
+    const api = calendarRef.current?.getApi();
+    if (api) api.changeView(currentView);
   }, [currentView]);
 
-  const handleViewChange = (event, newView) => {
-    if (newView !== null) {
-      setCurrentView(newView);
+  const handleEventClick = (info) => {
+    const eventDate = info.event.startStr.split("T")[0];
+    setSelectedDate(eventDate);
+
+    // No mobile, rolar para os detalhes
+    if (isSmallScreen && detailsRef.current) {
+      setTimeout(() => detailsRef.current.scrollIntoView({ behavior: "smooth" }), 100);
     }
   };
 
   const handlePrevClick = () => calendarRef.current?.getApi().prev();
   const handleNextClick = () => calendarRef.current?.getApi().next();
 
+  const activitiesOfDay = selectedDate
+    ? mockEvents.filter((ev) => ev.date === selectedDate)
+    : [];
+
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
+      {/* Header */}
       <Stack
-        // Em telas pequenas, empilha os itens verticalmente
         direction={isSmallScreen ? "column" : "row"}
-        // Em telas pequenas, alinha os itens ao início (esquerda)
         justifyContent="space-between"
         alignItems={isSmallScreen ? "flex-start" : "center"}
         mb={2}
-        // Adiciona um espaçamento maior entre os itens quando empilhados verticalmente
         spacing={isSmallScreen ? 2 : 0}
       >
-        {/* ToggleButtonGroup para visualização (Mês/Semana) */}
-        <ToggleButtonGroup exclusive value={currentView} onChange={handleViewChange}>
+        <ToggleButtonGroup
+          exclusive
+          value={currentView}
+          onChange={(_, v) => v && setCurrentView(v)}
+        >
           <ToggleButton value="dayGridMonth">Mês</ToggleButton>
           <ToggleButton value="timeGridWeek">Semana</ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Stack para navegação (botões de chevron e título) */}
-        <Stack
-          direction="row"
-          alignItems="center"
-          // Espaçamento entre os elementos (chevrons e título)
-          spacing={1}
-          // Garante que o grupo de navegação ocupe largura total em telas pequenas
-          sx={{ width: isSmallScreen ? '100%' : 'auto', justifyContent: isSmallScreen ? 'space-between' : 'flex-end' }}
-        >
-          <IconButton onClick={handlePrevClick}><ChevronLeftIcon /></IconButton>
-          <Typography
-            variant="h6"
-            component="h2"
-            sx={{
-              minWidth: '150px',
-              textAlign: 'center',
-              // Reduz o tamanho da fonte em telas pequenas para economizar espaço
-              fontSize: isSmallScreen ? '1rem' : '1.25rem',
-              // Permite que o texto do título quebre se for muito longo
-              whiteSpace: isSmallScreen ? 'normal' : 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              flexShrink: 1, // Permite que o Typography encolha
-            }}
-          >
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <IconButton onClick={handlePrevClick}>
+            <ChevronLeftIcon />
+          </IconButton>
+          <Typography variant="h6" sx={{ minWidth: "150px", textAlign: "center" }}>
             {calendarTitle}
           </Typography>
-          <IconButton onClick={handleNextClick}><ChevronRightIcon /></IconButton>
+          <IconButton onClick={handleNextClick}>
+            <ChevronRightIcon />
+          </IconButton>
         </Stack>
       </Stack>
 
-      <StyledCalendarWrapper>
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          locale={ptBrLocale}
-          initialView="dayGridMonth"
-          initialDate="2025-07-02"
-          headerToolbar={false}
-          events={mockEvents}
-          datesSet={(dateInfo) => setCalendarTitle(dateInfo.view.title)}
-          eventClick={(info) => alert(`Atividade Clicada: ${info.event.title} em ${info.event.startStr}`)}
-          dateClick={(info) => alert(`Data Clicada: ${info.dateStr}`)}
-        />
-      </StyledCalendarWrapper>
+      {/* Layout responsivo: lado a lado no desktop, empilhado no mobile */}
+      <Stack direction={isSmallScreen ? "column" : "row"} spacing={2}>
+        <Box flex={1}>
+          <StyledCalendarWrapper>
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+              locale={ptBrLocale}
+              initialView="dayGridMonth"
+              headerToolbar={false}
+              events={mockEvents}
+              datesSet={(info) => setCalendarTitle(info.view.title)}
+              eventClick={handleEventClick}
+            />
+          </StyledCalendarWrapper>
+        </Box>
+
+        {/* Detalhes só aparecem quando há seleção */}
+        {selectedDate && (
+          <Box
+            ref={detailsRef}
+            flex={1}
+            sx={{
+              maxHeight: isSmallScreen ? "auto" : "80vh",
+              overflowY: isSmallScreen ? "visible" : "auto",
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Atividades em {new Date(selectedDate).toLocaleDateString("pt-BR")}
+            </Typography>
+
+            {activitiesOfDay.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Nenhuma atividade para este dia.
+              </Typography>
+            ) : (
+              activitiesOfDay.map((activity) => (
+                <Paper key={activity.id} sx={{ p: 2, mb: 2, border: "1px solid #ddd" }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      {activity.title}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <IconButton size="small">
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small">
+                        <ShareIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Stack>
+
+                  <Divider sx={{ my: 1 }} />
+
+                  <Typography variant="body2">
+                    <strong>Tags:</strong> {activity.tags.join(", ")}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Prioridade:</strong> {activity.priority}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Status:</strong> {activity.status}
+                  </Typography>
+
+                  <Stack direction="row" spacing={1} mt={2}>
+                    <Button variant="contained" size="small">
+                      Iniciar
+                    </Button>
+                    <Button variant="contained" size="small">
+                      Concluir
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))
+            )}
+          </Box>
+        )}
+      </Stack>
     </Paper>
   );
-};
-
-export default CalendarView;
+}
