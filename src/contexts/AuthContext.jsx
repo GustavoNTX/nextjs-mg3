@@ -1,45 +1,58 @@
-// src/contexts/AuthContext.jsx
 "use client";
 
-import { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Estado de carregamento para verificar o storage
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Efeito para carregar o usuário do localStorage na inicialização
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('gmp-user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+      const storedToken = localStorage.getItem('gmp-token');
+      if (storedToken) {
+        const decodedUser = jwtDecode(storedToken); // Apenas o token (string) é passado aqui
+
+        // Verifica se o token não expirou
+        if (decodedUser.exp * 1000 > Date.now()) {
+          setUser(decodedUser);
+          setToken(storedToken);
+        } else {
+          localStorage.removeItem('gmp-token');
+        }
       }
     } catch (error) {
-      console.error("Falha ao carregar usuário do localStorage", error);
-      // Limpa em caso de erro de parsing
-      localStorage.removeItem('gmp-user');
+      console.error("Falha ao processar token:", error);
+      localStorage.removeItem('gmp-token');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const login = useCallback((userData) => {
-    localStorage.setItem('gmp-user', JSON.stringify(userData));
+  const login = useCallback((authData) => {
+    const { user: userData, token: authToken } = authData;
+    localStorage.setItem('gmp-token', authToken);
     setUser(userData);
-    router.push('/selecione-o-condominio'); // Redireciona após o login
+    setToken(authToken);
+    router.push('/selecione-o-condominio');
   }, [router]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('gmp-user');
+    localStorage.removeItem('gmp-token');
     setUser(null);
-    router.push('/login'); // Redireciona para a página de login
+    setToken(null);
+    router.push('/login');
   }, [router]);
 
-  const value = { user, loading, login, logout };
+  const value = useMemo(
+    () => ({ user, token, loading, login, logout }),
+    [user, token, loading, login, logout]
+  );
 
   return (
     <AuthContext.Provider value={value}>
@@ -48,7 +61,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Hook customizado para usar o contexto de autenticação
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

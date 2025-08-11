@@ -8,7 +8,7 @@ async function main() {
     create: {
       email: 'admin@example.com',
       name: 'Administrador',
-      passwordHash: '$2b$10$X8gYYZlRkls9tQZYvW1nUuDZZmA9AEXqtd9YhQ2CFJG8fZ1VZV4yG', // hash de "123456"
+      passwordHash: '$2b$10$b4ygrwy0x68hLVIb6tpySebA11HLSVdLs3tBYnSE8HtTAp.zTSzCi', // hash de "123456789"
       role: 'ADMIN',
     },
   })
