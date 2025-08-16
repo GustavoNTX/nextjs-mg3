@@ -1,40 +1,53 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { NextResponse } from "next/server";
+// import { cookies } from 'next/headers' // <- NÃO PRECISA MAIS
+import bcrypt from "bcrypt";
+import { PrismaClient } from "@prisma/client";
+import { signAccessToken, signRefreshToken } from "@/lib/tokens";
+import crypto from "node:crypto";
+
+const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
+    console.log("TESTE      ", email, password);
+    if (typeof email !== "string" || typeof password !== "string") {
+      return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
     }
-
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
-    }
+    if (!user)
+      return NextResponse.json(
+        { error: "Credenciais inválidas" },
+        { status: 401 }
+      );
 
-    // Comparar a senha fornecida com o hash armazenado
-    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordMatch) {
-      return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
-    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok)
+      return NextResponse.json(
+        { error: "Credenciais inválidas" },
+        { status: 401 }
+      );
 
-    // Gerar o Token JWT
-    const { passwordHash, ...userPayload } = user;
-    const token = jwt.sign(
-      userPayload,
-      process.env.JWT_SECRET!,
-      { expiresIn: '1h' } // Token expira em 1 hora
-    );
+    const claims = { sub: String(user.id), email: user.email };
+    const jti = crypto.randomUUID();
 
-    // Retornar o token e os dados do usuário (sem o hash da senha)
-    return NextResponse.json({ user: userPayload, token });
+    const accessToken = await signAccessToken(claims);
+    const refreshToken = await signRefreshToken({ ...claims, jti });
 
-  } catch (error) {
-    console.error("Erro no login:", error);
-    return NextResponse.json({ error: 'No momento estamos em manutenção.' }, { status: 500 });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken },
+    });
+
+    // Removida toda a lógica de cookies.
+    // Agora, ambos os tokens são enviados no corpo da resposta.
+    return NextResponse.json({
+      accessToken,
+      refreshToken,
+      user: { id: user.id, email: user.email },
+    });
+  } catch (err) {
+    console.error("Login Erro: ", err);
+    return NextResponse.json({ error: "Erro no login" }, { status: 500 });
   }
 }

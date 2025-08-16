@@ -1,31 +1,45 @@
 // src/components/ProtectedRoute.jsx
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { Box, Typography } from '@mui/material';
+import { useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { Box, Typography } from "@mui/material";
 
 export default function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const tried = useRef(false);
 
   useEffect(() => {
-    // Se não estiver carregando e não houver usuário, redireciona
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+    if (loading) return;
 
-  // Se estiver carregando, exibe uma mensagem de "Carregando..."
+    if (user) return;
+    if (tried.current) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    tried.current = true;
+    refresh().catch(() => {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    });
+  }, [loading, user, refresh, router, pathname]);
+
   if (loading || !user) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Typography>Verificando autenticação...</Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <Typography>Verificando autenticação…</Typography>
       </Box>
     );
   }
 
-  // Se o usuário estiver logado, renderiza o conteúdo da página
   return children;
 }

@@ -1,7 +1,7 @@
 // src/app/login/page.jsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // 1. Importar useEffect
 import {
   TextField,
   Button,
@@ -12,17 +12,25 @@ import {
   Typography,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
-
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth(); // 2. Obter user e loading do contexto
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+
+  // 3. Adicionar este useEffect para redirecionar se já estiver logado
+  useEffect(() => {
+    console.log("loading: ", loading, user);
+    // Apenas redireciona se o estado de autenticação não estiver carregando
+    if (!loading && user) {
+      router.push("/selecione-o-condominio");
+    }
+  }, [user, loading, router]);
 
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword);
@@ -33,37 +41,43 @@ export default function LoginPage() {
   };
 
   const handleLogin = async () => {
-    setError(""); // Limpa erros anteriores
+    setError("");
+
     try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Falha no login");
-      }
-
-      // Se o login for bem-sucedido, chama a função do contexto
-      login(data);
+      await login(email, password);
+      // se chegou aqui, logou com sucesso
+      router.push("/selecione-o-condominio");
     } catch (err) {
-      setError(err.message); // Exibe a mensagem de erro da API
+      setError(err.message);
       console.error(err);
     }
   };
 
   const handleCreatAccout = async () => {
-    setError(""); // Limpa erros anteriores
+    setError("");
     try {
       router.push("/cadastro");
     } catch (err) {
-      setError(err.message); // Exibe a mensagem de erro da API
+      setError(err.message);
       console.error(err);
     }
   };
+
+  // Se estiver carregando ou se o usuário já estiver logado, não renderiza o formulário
+  if (loading || user) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <Typography>Carregando...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -139,7 +153,6 @@ export default function LoginPage() {
           }}
         />
 
-        {/* CORREÇÃO: Bloco para exibir a mensagem de erro */}
         {error && (
           <Typography
             color="error"
@@ -167,7 +180,7 @@ export default function LoginPage() {
           }}
           onClick={handleLogin}
         >
-          ENTRAR
+          LOGAR
         </Button>
 
         {/* Esqueci minha senha */}

@@ -20,7 +20,7 @@ model Condominio {
 
   // Defina tamanhos razoáveis p/ índices ficarem mais eficientes
   name         String  @db.VarChar(120)
-  cnpj         String? @unique // Postgres permite vários NULLs; garante unicidade quando preenchido
+  cnpj String? @unique @db.Citext
   address      String  @db.VarChar(160)
   neighborhood String  @db.VarChar(80)
   city         String  @db.VarChar(80)
@@ -48,12 +48,13 @@ model Condominio {
 
 model User {
   id    String  @id @default(uuid())
-  email String  @unique
+  email String @unique @db.Citext
   name  String? @db.VarChar(120)
 
   // Defina tamanho do hash pra evitar lixo; 60 cobre bcrypt, 95+ cobre argon2id.
   passwordHash String @db.VarChar(255)
-
+  refreshToken String? @db.Text
+  
   // Opcional: papéis simples (enum abaixo)
   role Role @default(USER)
 

@@ -1,36 +1,56 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+// @ts-expect-error jose ESM types sometimes falham sob non-NodeNext
+import { jwtVerify } from 'jose'
 
-export function middleware(request: NextRequest) {
-  // 1. Pega o token do cabeçalho Authorization
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.split(' ')[1];
+// Rotas públicas: não exigem Authorization nem validade do token
+const PUBLIC_ROUTES = [
+  '/api/login',
+  '/api/register',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/refresh',
+  '/api/auth/refresh',
+  '/api/health',
+]
 
-  // 2. Se não houver token, retorna erro 401
-  if (!token) {
-    return new NextResponse(
-      JSON.stringify({ error: 'Autenticação necessária.' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
-    );
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // 1) Bypass total para rotas públicas
+  if (PUBLIC_ROUTES.some(p => pathname === p || pathname.startsWith(p + '/'))) {
+    return NextResponse.next()
   }
 
-  // 3. Verifica a validade do token
+  // 2) Bypass para preflight CORS
+  if (request.method === 'OPTIONS') {
+    return NextResponse.next()
+  }
+
+  // 3) Coletar token: Authorization: Bearer <token> OU cookie 'accessToken'
+  const authHeader = request.headers.get('authorization') || ''
+  let token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+  if (!token) {
+    token = request.cookies.get('accessToken')?.value ?? ''
+  }
+  if (!token) {
+    return NextResponse.json({ error: 'Autenticação necessária.' }, { status: 401 })
+  }
+
+  // 4) Validar JWT (expiração incluída)
   try {
-    // Usa o mesmo segredo do .env.local para verificar
-    jwt.verify(token, process.env.JWT_SECRET!);
-    // Se for válido, permite que a requisição continue
-    return NextResponse.next();
-  } catch (error) {
-    // Se a verificação falhar (token expirado, inválido, etc.)
-    return new NextResponse(
-      JSON.stringify({ error: 'Token inválido ou expirado.' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
-    );
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
+    await jwtVerify(token, secret)
+    return NextResponse.next()
+  } catch (err: any) {
+    const expired = err?.name === 'JWTExpired' || err?.code === 'ERR_JWT_EXPIRED'
+    return NextResponse.json(
+      { error: expired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID' },
+      { status: 401, headers: expired ? { 'x-token-expired': '1' } : undefined }
+    )
   }
 }
 
-// 4. Define quais rotas serão protegidas por este middleware
-export const config = {
-  matcher: '/api/condominios/:path*',
-};
+// Protege todas as rotas /api/*, deixando o bypass decidir as públicas
+export const config = { matcher: ['/api/:path*'] }
