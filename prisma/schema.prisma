@@ -36,6 +36,9 @@ model Condominio {
   reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   referencedBy Condominio[] @relation(name: "CondominioReferencia")
 
+  // Relação 1 -> N: um condomínio tem vários cronogramas
+  cronogramas Cronograma[]
+
   // Opcional: evita duplicatas exatas por "nome+cidade+estado"
   // @@unique([name, city, state])
 
@@ -62,9 +65,43 @@ model User {
 
   // ── Se quiser rastrear autoria dos condomínios, descomente no Condominio também ──
   // condominios Criados Condominio[] @relation("CondominioCreatedBy")
+
+  // relacionamento opcional com cronogramas (responsável)
+  cronogramasResponsavel Cronograma[] @relation("CronogramaResponsavel")
 }
 
 enum Role {
   USER
   ADMIN
+}
+
+/// ------------------ Modelo Cronograma ------------------
+
+model Cronograma {
+  id              String   @id @default(uuid())
+  title           String   @db.VarChar(150)
+  status          String   @db.VarChar(50)  // Ex.: "Próximas", "Em andamento", "Pendente", "Histórico"
+
+  // relação com condomínio (1 Condominio -> N Cronograma)
+  condominioId    String
+  condominio      Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  budgetStatus    String?  @db.VarChar(50)   // "aprovado", "pendente", "sem orçamento"
+  budget          Decimal? @db.Decimal(10, 2) // opcional: valor orçamentário
+  expectedDate    DateTime                      // data prevista/exibição no calendário
+  frequency       String?  @db.VarChar(50)   // "Mensal", "Anual", "Não se repete", etc.
+  team            String?  @db.VarChar(100)  // "Equipe interna", "Terceirizada", etc.
+  appliedStandard String?  @db.VarChar(100)  // "NR-35", "ABNT NBR 1604", etc.
+  location        String?  @db.VarChar(150)
+  responsibles    String?  @db.VarChar(255)  // texto com responsáveis (pode ser lista separada por vírgula)
+  observations    String?  @db.Text
+
+  // opcional: vincular um usuário responsável (se desejar)
+  responsibleId   String? 
+  responsible     User? @relation(name: "CronogramaResponsavel", fields: [responsibleId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([condominioId])
 }
