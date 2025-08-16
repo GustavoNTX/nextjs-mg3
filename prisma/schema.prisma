@@ -15,57 +15,77 @@ datasource db {
 // ─────────────────────────────  MODELS  ─────────────────────────────
 //
 
-model Condominio {
-  id String @id @default(uuid())
+// Modelo central do Multi-tenancy. Cada Empresa é um "inquilino" isolado.
+model Empresa {
+  id   String @id @default(uuid())
+  name String @db.VarChar(120)
+  cnpj String @unique @db.Citext
 
-  // Defina tamanhos razoáveis p/ índices ficarem mais eficientes
-  name         String  @db.VarChar(120)
-  cnpj String? @unique @db.Citext
-  address      String  @db.VarChar(160)
-  neighborhood String  @db.VarChar(80)
-  city         String  @db.VarChar(80)
-  state        String  @db.VarChar(2) // Ex.: "CE", "SP"
-  type         String  @db.VarChar(30)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // RELACIONAMENTOS: Uma empresa tem muitos usuários e muitos condomínios.
+  users       User[]
+  condominios Condominio[]
+
+  @@index([name])
+}
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique @db.Citext
+  name         String? @db.VarChar(120)
+  passwordHash String  @db.VarChar(255)
+  refreshToken String? @db.Text
+  role         Role    @default(USER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- RELAÇÃO MULTI-TENANCY ---
+  // O usuário pertence a uma Empresa. Esta é a chave do isolamento de dados.
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // --- ÍNDICES ---
+  // Essencial para performance em queries filtradas por tenant.
+  @@index([empresaId])
+}
+
+model Condominio {
+  id           String @id @default(uuid())
+  name         String @db.VarChar(120)
+  cnpj         String? @unique @db.Citext
+  address      String @db.VarChar(160)
+  neighborhood String @db.VarChar(80)
+  city         String @db.VarChar(80)
+  state        String @db.VarChar(2) // Ex.: "CE", "SP"
+  type         String @db.VarChar(30)
   imageUrl     String? @db.VarChar(255)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Auto-referência (pai/filho de condomínio)
+  // --- RELAÇÃO MULTI-TENANCY ---
+  // O condomínio pertence a uma Empresa.
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Auto-referência (pai/filho de condomínio dentro da mesma empresa)
   referenceId  String?
   reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   referencedBy Condominio[] @relation(name: "CondominioReferencia")
 
-  // Opcional: evita duplicatas exatas por "nome+cidade+estado"
-  // @@unique([name, city, state])
 
   // ── ÍNDICES ────────────────────────────────────────────────────────
+  @@index([empresaId]) // Essencial para performance
   @@index([city, state])
-  @@index([state]) // útil se pesquisar só por estado
   @@index([name])
   @@index([referenceId])
 }
 
-model User {
-  id    String  @id @default(uuid())
-  email String @unique @db.Citext
-  name  String? @db.VarChar(120)
-
-  // Defina tamanho do hash pra evitar lixo; 60 cobre bcrypt, 95+ cobre argon2id.
-  passwordHash String @db.VarChar(255)
-  refreshToken String? @db.Text
-  
-  // Opcional: papéis simples (enum abaixo)
-  role Role @default(USER)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // ── Se quiser rastrear autoria dos condomínios, descomente no Condominio também ──
-  // condominios Criados Condominio[] @relation("CondominioCreatedBy")
-}
-
 enum Role {
   USER
-  ADMIN
+  ADMIN // Pode ser admin dentro da sua empresa
+  // SUPER_ADMIN // Opcional: Para um admin que gerencia todas as empresas
 }
