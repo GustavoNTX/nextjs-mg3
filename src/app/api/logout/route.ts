@@ -1,33 +1,33 @@
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { PrismaClient } from '@prisma/client'
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = cookies()
-    const refreshToken = cookieStore.get('refreshToken')?.value
+    const res = NextResponse.json({ ok: true });
+    const cookieStore = cookies();
+    const refreshToken = cookieStore.get("refreshToken")?.value;
 
     if (refreshToken) {
       // invalida no banco
       await prisma.user.updateMany({
         where: { refreshToken },
-        data: { refreshToken: null }
-      })
+        data: { refreshToken: null },
+      });
     }
 
-    // apaga cookie
-    cookieStore.set('refreshToken', '', {
+    res.cookies.set("refreshToken", "", {
       httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      path: '/',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
       maxAge: 0,
-    })
+    });
 
-    return NextResponse.json({ ok: true })
+    return res;
   } catch {
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true });
   }
 }

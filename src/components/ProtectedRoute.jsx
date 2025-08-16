@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Box, Typography } from "@mui/material";
+import Image from "next/image";
 
 export default function ProtectedRoute({ children }) {
   const { user, loading, refresh } = useAuth();
@@ -36,7 +37,7 @@ export default function ProtectedRoute({ children }) {
           height: "100vh",
         }}
       >
-        <Typography>Verificando autenticação…</Typography>
+        <Image src="/simple-logo.png" alt="Logo" width={150} height={150} />
       </Box>
     );
   }

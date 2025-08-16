@@ -2,17 +2,34 @@
 
 import React, { useState } from "react";
 import {
-  Drawer, Toolbar, Box, Divider, List, ListItem, ListItemButton, ListItemIcon, ListItemText, useTheme, Collapse
+  Drawer,
+  Toolbar,
+  Box,
+  Divider,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  useTheme,
+  Collapse,
 } from "@mui/material";
 import { ExpandLess, ExpandMore } from "@mui/icons-material"; // Ícones para o dropdown
 import { menuItems } from "@/config/menuItems";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 const drawerWidth = 60;
 const expandedDrawerWidth = 240;
 
-export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave }) {
+export default function SidebarDesktop({
+  expanded,
+  onMouseEnter,
+  onMouseLeave,
+}) {
   const theme = useTheme();
-  
+  const { logout } = useAuth();
+  const router = useRouter();
   // Estado para controlar qual menu dropdown está aberto
   const [openMenu, setOpenMenu] = useState(null);
 
@@ -25,7 +42,12 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
   const drawerContent = (
     <>
       <Toolbar sx={{ justifyContent: "center" }}>
-        <Box component="img" src="/simple-logo.png" alt="Logo" sx={{ height: 40 }} />
+        <Box
+          component="img"
+          src="/simple-logo.png"
+          alt="Logo"
+          sx={{ height: 40 }}
+        />
       </Toolbar>
       <Divider />
       <List>
@@ -34,9 +56,17 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
             <ListItem disablePadding>
               <ListItemButton
                 // O clique agora abre o dropdown se houver sub-itens
-                onClick={() => item.children && handleClick(item.text)}
+                onClick={async () => {
+                  if (item.action === "logout") {
+                    await logout();
+                    setOpenMenu(null);
+                    router.push("/login");
+                  } else if (item.children) {
+                    handleClick(item.text);
+                  }
+                }}
                 sx={{
-                  "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 }
+                  "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
@@ -53,16 +83,24 @@ export default function SidebarDesktop({ expanded, onMouseEnter, onMouseLeave })
                   }}
                 />
                 {/* Mostra o ícone de seta se houver sub-itens e a sidebar estiver expandida */}
-                {item.children && expanded && (openMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
+                {item.children &&
+                  expanded &&
+                  (openMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
               </ListItemButton>
             </ListItem>
 
             {/* Submenu com Collapse (Dropdown) */}
             {item.children && (
-              <Collapse in={openMenu === item.text && expanded} timeout="auto" unmountOnExit>
+              <Collapse
+                in={openMenu === item.text && expanded}
+                timeout="auto"
+                unmountOnExit
+              >
                 <List component="div" disablePadding>
                   {item.children.map((child) => (
-                    <ListItemButton key={child.text} sx={{ pl: 4 }}> {/* Adiciona um padding para indentar */}
+                    <ListItemButton key={child.text} sx={{ pl: 4 }}>
+                      {" "}
+                      {/* Adiciona um padding para indentar */}
                       <ListItemIcon>{child.icon}</ListItemIcon>
                       <ListItemText primary={child.text} />
                     </ListItemButton>
