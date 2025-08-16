@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = [
   "/api/refresh",
   "/api/auth/refresh",
   "/api/health",
+  "/api/logout"
 ];
 
 export async function middleware(request: NextRequest) {

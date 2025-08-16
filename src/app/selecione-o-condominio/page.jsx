@@ -93,7 +93,6 @@ function PageInner() {
             {condominios.length > 0 ? (
               condominios.map((condominio) => (
                 <Grid item key={condominio.id} xs={12} sm={6} md={4}>
-                  {console.log("Condominhos: ", condominio)}
                   <CondominioCard {...condominio} onEdit={handleEdit} />
                 </Grid>
               ))

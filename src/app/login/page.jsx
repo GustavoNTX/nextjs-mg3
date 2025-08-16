@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
-import Image from 'next/image';
+import Image from "next/image";
 
 export default function LoginPage() {
   const { login, user, loading } = useAuth(); // 2. Obter user e loading do contexto
@@ -75,12 +75,7 @@ export default function LoginPage() {
           height: "100vh",
         }}
       >
-         <Image
-                               src="/simple-logo.png"
-                               alt="Logo"
-                               width={150}
-                               height={150}
-                             />
+        <Image src="/simple-logo.png" alt="Logo" width={150} height={150} />
       </Box>
     );
   }

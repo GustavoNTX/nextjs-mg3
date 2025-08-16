@@ -81,13 +81,29 @@ export function AuthProvider({ children }) {
   }, [applyToken]);
 
   const logout = useCallback(async () => {
+    setLoading(true);
     try {
-      await fetch("/api/logout", { method: "POST", credentials: "include" });
-      setUser(null);
-      setLoading(true);
-    } catch {}
-    setAccessToken(null);
-    setUser(null);
+      const res = await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      // Considere 200/204/401 como sucesso de UX
+      if (!res.ok && res.status !== 401 && res.status !== 204) {
+        const txt = await res.text().catch(() => "");
+        console.error("logout endpoint error:", res.status, txt);
+      }
+    } catch (err) {
+      console.error("logout network error:", err);
+    } finally {
+      setAccessToken(null);
+      setUser(false);
+      setLoading(false);
+      // opcional:
+      // queryClient.clear();
+      // router.replace("/login");
+    }
   }, []);
 
   // Bootstrapping: tenta restaurar a sessão no carregamento inicial
