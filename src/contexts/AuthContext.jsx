@@ -83,6 +83,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
+      setUser(null);
+      setLoading(true);
     } catch {}
     setAccessToken(null);
     setUser(null);
