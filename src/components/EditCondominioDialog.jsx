@@ -78,7 +78,7 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <img 
-            src={values.imageUrl || 'https://via.placeholder.com/60'} 
+            src={values.imageUrl || 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop'} 
             alt={`Foto de ${values.name}`}
             style={{ width: 60, height: 60, borderRadius: '8px', objectFit: 'cover', marginRight: '16px' }}
           />
