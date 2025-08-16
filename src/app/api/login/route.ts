@@ -39,13 +39,19 @@ export async function POST(req: Request) {
       data: { refreshToken },
     });
 
-    // Removida toda a lógica de cookies.
-    // Agora, ambos os tokens são enviados no corpo da resposta.
-    return NextResponse.json({
+    const res = NextResponse.json({
       accessToken,
-      refreshToken,
       user: { id: user.id, email: user.email },
     });
+
+    res.cookies.set("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      path: "/",
+    });
+
+    return res;
   } catch (err) {
     console.error("Login Erro: ", err);
     return NextResponse.json({ error: "Erro no login" }, { status: 500 });

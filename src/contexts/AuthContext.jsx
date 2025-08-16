@@ -55,13 +55,13 @@ export function AuthProvider({ children }) {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        credentials: "include", // importante se o refresh vier via cookie HttpOnly
+        credentials: "include", // refresh token via cookie HttpOnly
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) throw new Error("Login falhou");
-      const data = await res.json();
-      applyToken(data.accessToken);
-      return data;
+      const { accessToken } = await res.json();
+      applyToken(accessToken);
+      return accessToken;
     },
     [applyToken]
   );
@@ -72,8 +72,7 @@ export function AuthProvider({ children }) {
       credentials: "include",
     });
     if (!res.ok) throw new Error("refresh_failed");
-    const data = await res.json().catch(() => ({}));
-    const { accessToken } = data || {};
+    const { accessToken } = await res.json().catch(() => ({}));
     if (typeof accessToken !== "string" || !accessToken) {
       throw new Error("no_access_token");
     }

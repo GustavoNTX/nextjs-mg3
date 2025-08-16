@@ -12,6 +12,7 @@ import {
 } from "@/contexts/CondominiosContext";
 import { useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Image from 'next/image';
 
 function PageInner() {
   const {
@@ -76,7 +77,12 @@ function PageInner() {
 
         {loading ? (
           <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
-            <Typography>Carregando...</Typography>
+             <Image
+                       src="/simple-logo.png"
+                       alt="Logo"
+                       width={150}
+                       height={150}
+                     />
           </Box>
         ) : error ? (
           <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
