@@ -38,7 +38,7 @@ function PageInner() {
 
   const handleSaveEdit = async (updatedData) => {
     await update(updatedData.id, updatedData);
-    setEditDialogOpen(false);
+    // setEditDialogOpen(false);
   };
 
   const handleDelete = async (condoId) => {
@@ -87,6 +87,7 @@ function PageInner() {
             {condominios.length > 0 ? (
               condominios.map((condominio) => (
                 <Grid item key={condominio.id} xs={12} sm={6} md={4}>
+                  {console.log("Condominhos: ", condominio)}
                   <CondominioCard {...condominio} onEdit={handleEdit} />
                 </Grid>
               ))

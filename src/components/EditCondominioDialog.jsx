@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from 'next/navigation'; // <<< MUDANÇA 1: Importar o useRouter
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogActions,
@@ -16,11 +16,15 @@ import {
   Paper,
   Grid,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import EditIcon from '@mui/icons-material/Edit';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-
+import EditIcon from "@mui/icons-material/Edit";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 
 // Componente auxiliar para as abas
 function TabPanel(props) {
@@ -38,8 +42,13 @@ function TabPanel(props) {
   );
 }
 
-export default function EditCondominioDialog({ open, onClose, onSave, condominio }) {
-  const router = useRouter(); // <<< MUDANÇA 2: Instanciar o roteador
+export default function EditCondominioDialog({
+  open,
+  onClose,
+  onSave,
+  condominio,
+}) {
+  const router = useRouter();
   const [values, setValues] = useState(condominio || {});
   const [currentTab, setCurrentTab] = useState(0);
 
@@ -64,33 +73,50 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
     onClose();
   };
 
-  // <<< MUDANÇA 3: Criar a função para navegar
   const handleOpenCronograma = () => {
-    // Se o cronograma for parte do mesmo app, o ideal é usar a rota relativa
-    // router.push('/cronograma');
-    
-    // Para a sua URL específica:
-    router.push('/cronograma');
+    router.push("/cronograma");
   };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <img 
-            src={values.imageUrl || 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop'} 
+      <Box
+        sx={{
+          p: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <img
+            src={
+              values.imageUrl ||
+              "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=1974&auto=format&fit=crop"
+            }
             alt={`Foto de ${values.name}`}
-            style={{ width: 60, height: 60, borderRadius: '8px', objectFit: 'cover', marginRight: '16px' }}
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "8px",
+              objectFit: "cover",
+              marginRight: "16px",
+            }}
           />
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{values.name}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+            {values.name}
+          </Typography>
         </Box>
         <IconButton onClick={onClose}>
           <CloseIcon />
         </IconButton>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={currentTab} onChange={handleTabChange} aria-label="abas de edição">
+      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Tabs
+          value={currentTab}
+          onChange={handleTabChange}
+          aria-label="abas de edição"
+        >
           <Tab label="Visão Geral" />
           <Tab label="Anexos" />
           <Tab label="Anotações" />
@@ -98,38 +124,121 @@ export default function EditCondominioDialog({ open, onClose, onSave, condominio
       </Box>
 
       <TabPanel value={currentTab} index={0}>
-        <Typography variant="h6" gutterBottom>Detalhes do Condomínio</Typography>
+        <Typography variant="h6" gutterBottom>
+          Detalhes do Condomínio
+        </Typography>
         <Paper variant="outlined" sx={{ p: 2 }}>
-            <Grid container spacing={2}>
-                 <Grid item xs={12} sm={6}>
-                    <TextField label="Nome do condomínio" value={values.name || ""} onChange={handleChange("name")} fullWidth />
-                </Grid>
-                 <Grid item xs={12} sm={6}>
-                    <TextField label="CNPJ" value={values.cnpj || ""} onChange={handleChange("cnpj")} fullWidth />
-                </Grid>
-                <Grid item xs={12}>
-                    <TextField label="Endereço" value={values.address || ""} onChange={handleChange("address")} fullWidth />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                    <TextField label="Bairro" value={values.neighborhood || ""} onChange={handleChange("neighborhood")} fullWidth />
-                </Grid>
-                 <Grid item xs={12} sm={6}>
-                    <TextField label="Tipo" value={values.type || ""} onChange={handleChange("type")} fullWidth />
-                </Grid>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Nome do condomínio"
+                value={values.name || ""}
+                onChange={handleChange("name")}
+                fullWidth
+              />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="CNPJ"
+                value={values.cnpj || ""}
+                onChange={handleChange("cnpj")}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Endereço"
+                value={values.address || ""}
+                onChange={handleChange("address")}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Bairro"
+                value={values.neighborhood || ""}
+                onChange={handleChange("neighborhood")}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth variant="outlined">
+                {console.log("dados :", values)}
+                <InputLabel id="city-select-label">Cidade</InputLabel>
+                <Select
+                  labelId="city-select-label"
+                  value={values.city || ""}
+                  onChange={handleChange("city")}
+                  label="Cidade"
+                >
+                  <MenuItem value="">
+                    <em>Selecione</em>
+                  </MenuItem>
+                  <MenuItem value="sao_paulo">São Paulo</MenuItem>
+                  <MenuItem value="rio">Rio de Janeiro</MenuItem>
+                  <MenuItem value="Fortaleza">Fortaleza</MenuItem>
+                  {/* Adicione outras cidades aqui */}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth variant="outlined">
+                <InputLabel id="state-select-label">Estado</InputLabel>
+                <Select
+                  labelId="state-select-label"
+                  value={values.state || ""}
+                  onChange={handleChange("state")}
+                  label="Estado"
+                >
+                  <MenuItem value="">
+                    <em>Selecione</em>
+                  </MenuItem>
+                  <MenuItem value="SP">São Paulo</MenuItem>
+                  <MenuItem value="RJ">Rio de Janeiro</MenuItem>
+                  <MenuItem value="CE">Ceará</MenuItem>
+                  {/* Adicione outros estados aqui */}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth variant="outlined">
+                <InputLabel id="type-select-label">Tipo</InputLabel>
+                <Select
+                  labelId="type-select-label"
+                  value={values.type || ""}
+                  onChange={handleChange("type")}
+                  label="Tipo"
+                >
+                  <MenuItem value="">
+                    <em>Selecione</em>
+                  </MenuItem>
+                  <MenuItem value="Residencial">Residencial</MenuItem>
+                  <MenuItem value="Comercial">Comercial</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </Paper>
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-             {/* <<< MUDANÇA 4: Adicionar o onClick ao botão */}
-             <Button 
-                variant="contained" 
-                endIcon={<ArrowForwardIosIcon />}
-                onClick={handleOpenCronograma}
-             >
-                Abrir Cronograma
-            </Button>
-            <Button variant="contained" color="secondary" startIcon={<EditIcon />} onClick={handleSaveChanges}>
-                Salvar Alterações
-            </Button>
+        <Box
+          sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}
+        >
+          {/* <<< MUDANÇA 4: Adicionar o onClick ao botão */}
+          <Button
+            variant="contained"
+            endIcon={<ArrowForwardIosIcon />}
+            onClick={handleOpenCronograma}
+          >
+            Abrir Cronograma
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<EditIcon />}
+            onClick={handleSaveChanges}
+          >
+            Salvar Alterações
+          </Button>
         </Box>
       </TabPanel>
 
