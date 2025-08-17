@@ -1,3 +1,4 @@
+// src/components/mobile/Header.jsx
 "use client";
 
 import React from "react";
@@ -13,6 +14,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Avatar,
+  Button,
   useTheme,
 } from "@mui/material";
 import {
@@ -20,6 +23,7 @@ import {
   Search as SearchIcon,
   Notifications as NotificationsIcon,
 } from "@mui/icons-material";
+import { useCondominoUIOptional } from "@/contexts/CondominoUIContext";
 
 export default function HeaderMobile({
   title,
@@ -28,34 +32,65 @@ export default function HeaderMobile({
   filtro,
   setFiltro,
   onMenuClick,
+  // opcionais
+  selectedCondomino,
+  onSair,
 }) {
   const theme = useTheme();
+  const ui = useCondominoUIOptional();
+
+  const effectiveSearch = ui?.search ?? search ?? "";
+  const effectiveSetSearch = ui?.setSearch ?? setSearch ?? (() => {});
+  const effectiveFiltro = ui?.filtro ?? filtro ?? "Todos";
+  const effectiveSetFiltro = ui?.setFiltro ?? setFiltro ?? (() => {});
+  const selected = ui?.selected ?? selectedCondomino ?? null;
+  const handleSair = ui?.sair ?? onSair ?? (() => {});
 
   return (
     <Box>
-      {/* 1) AppBar com menu e sino */}
       <AppBar
         position="fixed"
-        elevation={1} // Adiciona uma leve sombra
-        sx={{ backgroundColor: theme.palette.background.paper }} // Garante o fundo
+        elevation={1}
+        sx={{ backgroundColor: theme.palette.background.paper }}
       >
         <Toolbar>
           <IconButton edge="start" onClick={onMenuClick} sx={{ mr: 1 }}>
             <MenuIcon />
           </IconButton>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography
-            variant="h5"
-            fontWeight="bold"
+
+          {/* Centro: logo + nome (se selecionado) OU título padrão */}
+          <Box
             sx={{
               flexGrow: 1,
-              textAlign: "center",
-              color: "primary.main", // Aplicando a cor primária do tema
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 1,
             }}
           >
-            {title}
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
+            {selected && (
+              <Avatar
+                src={selected.logoUrl || "/simple-logo.png"}
+                sx={{ width: 28, height: 28 }}
+              />
+            )}
+            <Typography
+              variant="h6"
+              fontWeight="bold"
+              sx={{ color: "primary.main" }}
+            >
+              {selected ? selected.name : title}
+            </Typography>
+          </Box>
+
+          {/* Direita: sino ou Sair */}
+          {selected ? (
+            <Button color="inherit" onClick={handleSair} size="small">
+              Sair
+            </Button>
+          ) : (
+            <></>
+          )}
           <IconButton>
             <NotificationsIcon />
           </IconButton>
@@ -64,36 +99,39 @@ export default function HeaderMobile({
 
       <Toolbar />
 
-      {/* 3) Busca + filtro */}
-      <Box px={2} py={2}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Pesquisar"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ mb: 2 }}
-        />
-        <FormControl fullWidth variant="standard">
-          <InputLabel>Filtrar por tipo</InputLabel>
-          <Select
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
-            label="Filtrar por tipo"
-          >
-            <MenuItem value="Todos">Todos</MenuItem>
-            <MenuItem value="Residencial">Residencial</MenuItem>
-            <MenuItem value="Comercial">Comercial</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
+      {/* Busca + filtro (somem em modo cronograma) */}
+      {!selected && (
+        <Box px={2} py={2}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Pesquisar pelo nome"
+            value={effectiveSearch}
+            onChange={(e) => effectiveSetSearch(e.target.value)}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
+
+          <FormControl fullWidth variant="standard">
+            <InputLabel>Filtrar por tipo</InputLabel>
+            <Select
+              value={effectiveFiltro}
+              onChange={(e) => effectiveSetFiltro(e.target.value)}
+              label="Filtrar por tipo"
+            >
+              <MenuItem value="Todos">Todos</MenuItem>
+              <MenuItem value="Residencial">Residencial</MenuItem>
+              <MenuItem value="Comercial">Comercial</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      )}
     </Box>
   );
 }

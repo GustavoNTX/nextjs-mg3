@@ -25,6 +25,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import { useCondominoUI } from "@/contexts/CondominoUIContext";
 
 // Componente auxiliar para as abas
 function TabPanel(props) {
@@ -48,6 +49,8 @@ export default function EditCondominioDialog({
   onSave,
   condominio,
 }) {
+  const { enterCronograma } = useCondominoUI();
+
   const router = useRouter();
   const [values, setValues] = useState(condominio || {});
   const [currentTab, setCurrentTab] = useState(0);
@@ -74,7 +77,12 @@ export default function EditCondominioDialog({
   };
 
   const handleOpenCronograma = () => {
-    router.push("/cronograma");
+    enterCronograma({
+      id: condominio.id,
+      name: condominio.name,
+      logoUrl: condominio.imageUrl,
+    });
+    router.push(`/cronograma/${condominio.id}`);
   };
 
   return (
@@ -163,7 +171,6 @@ export default function EditCondominioDialog({
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth variant="outlined">
-                {console.log("dados :", values)}
                 <InputLabel id="city-select-label">Cidade</InputLabel>
                 <Select
                   labelId="city-select-label"

@@ -1,3 +1,4 @@
+// src/app/selecione-o-condominio/page.jsx
 "use client";
 
 import { Box, Typography, Button, Grid, Stack } from "@mui/material";
@@ -10,9 +11,13 @@ import {
   CondominiosProvider,
   useCondominios,
 } from "@/contexts/CondominiosContext";
-import { useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Image from "next/image";
+import { useState, useMemo } from "react";
+import {
+  CondominoUIProvider,
+  useCondominoUI,
+} from "@/contexts/CondominoUIContext";
 
 function PageInner() {
   const {
@@ -23,6 +28,8 @@ function PageInner() {
     loading,
     error,
   } = useCondominios();
+  const { search, filtro } = useCondominoUI();
+
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedCondo, setSelectedCondo] = useState(null);
@@ -36,16 +43,23 @@ function PageInner() {
     await create(data);
     setAddDialogOpen(false);
   };
-
   const handleSaveEdit = async (updatedData) => {
     await update(updatedData.id, updatedData);
-    // setEditDialogOpen(false);
   };
-
   const handleDelete = async (condoId) => {
     await remove(condoId);
     setEditDialogOpen(false);
   };
+
+  const filtered = useMemo(() => {
+    const s = (search || "").toLowerCase();
+    const f = (filtro || "Todos").toLowerCase();
+    return (condominios || []).filter((c) => {
+      const matchName = !s || (c.name || "").toLowerCase().includes(s);
+      const matchType = f === "todos" || (c.type || "").toLowerCase() === f;
+      return matchName && matchType;
+    });
+  }, [condominios, search, filtro]);
 
   return (
     <>
@@ -87,17 +101,17 @@ function PageInner() {
           <Box
             sx={{
               display: "grid",
-              gap: 3, 
+              gap: 3,
               gridTemplateColumns: {
                 xs: "1fr",
-                sm: "repeat(2, 1fr)", 
-                md: "repeat(4, 1fr)", 
+                sm: "repeat(2, 1fr)",
+                md: "repeat(4, 1fr)",
               },
               alignItems: "stretch",
             }}
           >
-            {condominios.length > 0 ? (
-              condominios.map((condominio) => (
+            {filtered.length > 0 ? (
+              filtered.map((condominio) => (
                 <Grid
                   item
                   key={condominio.id}
@@ -111,16 +125,16 @@ function PageInner() {
               ))
             ) : (
               <Grid
-                sx={{ textAlign: "center", width: "100%", mt: 8 }}
+                sx={{ textAlign: "center", width: "100%,", mt: 8 }}
                 item
                 xs={12}
               >
                 <Box textAlign="center" mt={8}>
                   <Typography variant="h6" color="text.secondary">
-                    Não há condomínios para mostrar
+                    Nenhum condomínio encontrado
                   </Typography>
                   <Typography variant="body1" color="text.secondary">
-                    Clique em "Adicionar condomínio" para começar.
+                    Ajuste os filtros ou limpe a busca.
                   </Typography>
                 </Box>
               </Grid>
@@ -150,11 +164,14 @@ function PageInner() {
 export default function SelecioneOCondominioPage() {
   return (
     <ProtectedRoute>
-      <Layout>
-        <CondominiosProvider>
-          <PageInner />
-        </CondominiosProvider>
-      </Layout>
+      {/* Provider precisa ficar ACIMA do Layout para o Header enxergar o contexto */}
+      <CondominoUIProvider>
+        <Layout>
+          <CondominiosProvider>
+            <PageInner />
+          </CondominiosProvider>
+        </Layout>
+      </CondominoUIProvider>
     </ProtectedRoute>
   );
 }
