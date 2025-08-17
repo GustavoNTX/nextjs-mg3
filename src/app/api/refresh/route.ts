@@ -4,11 +4,13 @@ import { PrismaClient } from "@prisma/client";
 import { verifyRefreshToken, signAccessToken, signRefreshToken } from "@/lib/tokens";
 import crypto from "node:crypto";
 
-const prisma = new PrismaClient(); // ideal: use singleton compartilhado
+const prisma = new PrismaClient(); // ideal: singleton compartilhado
 
 export async function POST(req: Request) {
   try {
-    const cookieStore = cookies();
+    // ✅ Next 15: cookies() retorna Promise
+    const cookieStore = await cookies();
+
     // 1) pegar do cookie
     let refreshToken = cookieStore.get("refreshToken")?.value;
 
@@ -24,7 +26,6 @@ export async function POST(req: Request) {
 
     if (!refreshToken) {
       const res = NextResponse.json({ error: "Refresh token requerido" }, { status: 401 });
-      // garante limpeza local se veio cookie vazio/corrompido
       res.cookies.delete("refreshToken");
       return res;
     }
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       select: { id: true, email: true, refreshToken: true },
     });
 
-    // validar token persistido (single-session). Se quiser multi-sessão, mude o modelo.
+    // validar token persistido (single-session). Para multi-sessão, ajuste o modelo.
     if (!user || user.refreshToken !== refreshToken) {
       const res = NextResponse.json({ error: "Token inválido" }, { status: 401 });
       res.cookies.delete("refreshToken");

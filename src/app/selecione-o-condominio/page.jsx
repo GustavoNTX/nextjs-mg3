@@ -87,11 +87,11 @@ function PageInner() {
           <Box
             sx={{
               display: "grid",
-              gap: 3, // usa theme.spacing(3)
+              gap: 3, 
               gridTemplateColumns: {
-                xs: "1fr", // mobile: 1 por linha (100%)
-                sm: "repeat(2, 1fr)", // sm: 2 colunas iguais
-                md: "repeat(4, 1fr)", // md+: 3 colunas iguais
+                xs: "1fr",
+                sm: "repeat(2, 1fr)", 
+                md: "repeat(4, 1fr)", 
               },
               alignItems: "stretch",
             }}

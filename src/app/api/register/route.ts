@@ -1,37 +1,47 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import bcrypt from 'bcrypt';
+// src/app/api/register/route.ts
+import { NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+import bcrypt from 'bcrypt'
+import { z } from 'zod'
+
+const schema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  // ⚠️ empresaId obrigatório porque a relação é required no schema
+  empresaId: z.string().min(1),
+})
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
+    const body = await req.json()
+    const { name, email, password, empresaId } = schema.parse(body)
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: 'Todos os campos são obrigatórios' }, { status: 400 });
-    }
-
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
-      return NextResponse.json({ error: 'Este e-mail já está em uso' }, { status: 409 });
+      return NextResponse.json({ error: 'Este e-mail já está em uso' }, { status: 409 })
     }
 
-    // Use bcrypt para criar um hash seguro da senha
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await bcrypt.hash(password, 10)
 
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
         passwordHash,
+        // ✅ satisfaça a relação obrigatória
+        empresa: { connect: { id: empresaId } },
       },
-    });
+      // evite devolver o hash
+      select: { id: true, name: true, email: true, empresaId: true, createdAt: true },
+    })
 
-    const { passwordHash: _, ...userWithoutPassword } = newUser;
-    return NextResponse.json(userWithoutPassword, { status: 201 });
-
-  } catch (error) {
-    console.error("Erro no registro:", error);
-    return NextResponse.json({ error: 'Ocorreu um erro interno no servidor' }, { status: 500 });
+    return NextResponse.json(newUser, { status: 201 })
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return NextResponse.json({ error: 'Validação falhou', issues: error.flatten() }, { status: 422 })
+    }
+    console.error('Erro no registro:', error)
+    return NextResponse.json({ error: 'Ocorreu um erro interno no servidor' }, { status: 500 })
   }
 }
