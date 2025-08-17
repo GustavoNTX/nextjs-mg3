@@ -12,7 +12,7 @@ import {
 } from "@/contexts/CondominiosContext";
 import { useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Image from 'next/image';
+import Image from "next/image";
 
 function PageInner() {
   const {
@@ -77,27 +77,44 @@ function PageInner() {
 
         {loading ? (
           <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
-             <Image
-                       src="/simple-logo.png"
-                       alt="Logo"
-                       width={150}
-                       height={150}
-                     />
+            <Image src="/simple-logo.png" alt="Logo" width={150} height={150} />
           </Box>
         ) : error ? (
           <Box sx={{ textAlign: "center", width: "100%", mt: 8 }}>
             <Typography color="error">{error}</Typography>
           </Box>
         ) : (
-          <Grid container spacing={3}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 3, // usa theme.spacing(3)
+              gridTemplateColumns: {
+                xs: "1fr", // mobile: 1 por linha (100%)
+                sm: "repeat(2, 1fr)", // sm: 2 colunas iguais
+                md: "repeat(4, 1fr)", // md+: 3 colunas iguais
+              },
+              alignItems: "stretch",
+            }}
+          >
             {condominios.length > 0 ? (
               condominios.map((condominio) => (
-                <Grid item key={condominio.id} xs={12} sm={6} md={4}>
+                <Grid
+                  item
+                  key={condominio.id}
+                  xs={12}
+                  sm={6}
+                  md={4}
+                  sx={{ display: "flex" }}
+                >
                   <CondominioCard {...condominio} onEdit={handleEdit} />
                 </Grid>
               ))
             ) : (
-              <Grid sx={{ textAlign: "center", width: "100%", mt: 8 }} item xs={12}>
+              <Grid
+                sx={{ textAlign: "center", width: "100%", mt: 8 }}
+                item
+                xs={12}
+              >
                 <Box textAlign="center" mt={8}>
                   <Typography variant="h6" color="text.secondary">
                     Não há condomínios para mostrar
@@ -108,7 +125,7 @@ function PageInner() {
                 </Box>
               </Grid>
             )}
-          </Grid>
+          </Box>
         )}
       </Box>
 
