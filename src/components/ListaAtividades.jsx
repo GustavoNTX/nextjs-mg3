@@ -80,7 +80,12 @@ const StatusCircle = styled("div")(({ color }) => ({
 
 const InfoItem = ({ label, children }) => (
   <Box>
-    <Typography variant="caption" color="text.secondary" component="div" sx={{ fontWeight: "bold" }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      component="div"
+      sx={{ fontWeight: "bold" }}
+    >
       {label}
     </Typography>
     <Typography variant="body2" component="div">
@@ -91,8 +96,17 @@ const InfoItem = ({ label, children }) => (
 
 // --- HELPERS ---
 
-const getStatusColor = (statusBool) => (statusBool ? "#2d96ff" : "#FF5959");
-const statusLabel = (statusBool) => (statusBool ? "Em andamento" : "Pendente");
+// Coloque no topo do arquivo
+const normalizeStatus = (s) => {
+  if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS")
+    return true;
+  if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING")
+    return false;
+  return false; // default seguro
+};
+
+const statusLabel = (bool) => (bool ? "Em andamento" : "Pendente");
+const getStatusColor = (bool) => (bool ? "#2d96ff" : "#FF5959");
 
 const formatDateTime = (value) => {
   if (!value) return "—";
@@ -108,13 +122,19 @@ const formatDateTime = (value) => {
 // --- CARD ---
 
 const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
-  const statusColor = getStatusColor(activity.status);
+  const statusBool = normalizeStatus(activity.status);
+  const statusColor = getStatusColor(statusBool);
   const hasPhoto = Boolean(activity.photoUrl);
 
   return (
     <CardContainer variant="outlined">
       {/* Cabeçalho */}
-      <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+      <Grid
+        container
+        spacing={2}
+        alignItems="center"
+        justifyContent="space-between"
+      >
         <Grid item xs={12} md={"auto"}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <BuildIcon fontSize="small" />
@@ -122,15 +142,24 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
               {activity.name}
             </Typography>
             {activity.prioridade && (
-              <Chip size="small" label={`Prioridade: ${activity.prioridade}`} variant="outlined" />
+              <Chip
+                size="small"
+                label={`Prioridade: ${activity.prioridade}`}
+                variant="outlined"
+              />
             )}
           </Stack>
         </Grid>
         <Grid item xs={12} md={"auto"}>
-          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent={{ xs: "flex-start", md: "flex-end" }}
+          >
             <StatusSpan color={statusColor}>
               <StatusCircle color={statusColor} />
-              {statusLabel(activity.status)}
+              {statusLabel(statusBool)}
             </StatusSpan>
             <IconButton
               aria-label="Excluir"
@@ -165,14 +194,18 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
           <InfoItem label="Equipe">{activity.equipe}</InfoItem>
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Tipo de Atividade">{activity.tipoAtividade}</InfoItem>
+          <InfoItem label="Tipo de Atividade">
+            {activity.tipoAtividade}
+          </InfoItem>
         </Grid>
 
         <Grid item xs={12} md={8}>
           <InfoItem label="Modelo / Descrição">{activity.model}</InfoItem>
         </Grid>
         <Grid item xs={12} md={4}>
-          <InfoItem label="Criado em">{formatDateTime(activity.createdAt)}</InfoItem>
+          <InfoItem label="Criado em">
+            {formatDateTime(activity.createdAt)}
+          </InfoItem>
         </Grid>
 
         <Grid item xs={12}>
@@ -206,13 +239,18 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
       </Grid>
 
       {/* Ações */}
-      <Stack direction="row" spacing={1} sx={{ mt: 2 }} justifyContent="flex-end">
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ mt: 2 }}
+        justifyContent="flex-end"
+      >
         <Button
           size="small"
           variant="outlined"
           onClick={() => onToggleStatus?.(activity)}
         >
-          Marcar como {activity.status ? "Pendente" : "Em andamento"}
+          Marcar como {statusBool ? "Pendente" : "Em andamento"}
         </Button>
       </Stack>
     </CardContainer>
@@ -240,9 +278,18 @@ const ListaAtividades = () => {
   // Abas baseadas no schema atual (boolean)
   const TABS = useMemo(
     () => [
-      { key: "EM_ANDAMENTO", label: "Em andamento", color: "#2d96ff" },
+      {
+        key: "proximos",
+        label: "Proximos",
+        color: theme.palette.text.secondary,
+      },
+      {
+        key: "EM_ANDAMENTO",
+        label: "Em andamento",
+        color: theme.palette.info.main,
+      },
       { key: "PENDENTE", label: "Pendente", color: "#FF5959" },
-      { key: "TODOS", label: "Todos", color: theme.palette.text.secondary },
+      { key: "HISTORICO", label: "Histórico", color: "rgb(135, 231, 106)" },
     ],
     [theme.palette.text.secondary]
   );
@@ -250,8 +297,10 @@ const ListaAtividades = () => {
   const [activeKey, setActiveKey] = useState("EM_ANDAMENTO");
 
   const filtered = useMemo(() => {
-    if (activeKey === "EM_ANDAMENTO") return items.filter((a) => a.status === true);
-    if (activeKey === "PENDENTE") return items.filter((a) => a.status === false);
+    if (activeKey === "EM_ANDAMENTO")
+      return items.filter((a) => normalizeStatus(a.status) === true);
+    if (activeKey === "PENDENTE")
+      return items.filter((a) => normalizeStatus(a.status) === false);
     return items;
   }, [items, activeKey]);
 
@@ -263,7 +312,9 @@ const ListaAtividades = () => {
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
-        await updateAtividade(activity.id, { status: !activity.status });
+        const current = normalizeStatus(activity.status);
+
+        await updateAtividade(activity.id, { status: !current });
       } catch (e) {
         // TODO: snackbar/toast
         console.error(e);
@@ -330,7 +381,11 @@ const ListaAtividades = () => {
           </Typography>
         </Paper>
 
-        <Stack direction="row" spacing={1} sx={{ width: isSmallScreen ? "100%" : "auto" }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ width: isSmallScreen ? "100%" : "auto" }}
+        >
           <Button
             onClick={handleRefresh}
             startIcon={<RefreshIcon />}
@@ -378,7 +433,11 @@ const ListaAtividades = () => {
           )}
         </>
       ) : (
-        <Typography variant="h6" color="text.secondary" sx={{ mt: 4, textAlign: "center" }}>
+        <Typography
+          variant="h6"
+          color="text.secondary"
+          sx={{ mt: 4, textAlign: "center" }}
+        >
           Não há atividades para mostrar neste filtro.
         </Typography>
       )}

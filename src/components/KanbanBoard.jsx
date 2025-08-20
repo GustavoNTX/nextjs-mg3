@@ -164,6 +164,17 @@ const CardStatusCircle = styled("div")(({ theme, color }) => ({
 }));
 
 // --- Helpers ---
+
+const normalizeStatus = (s) => {
+  if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS") return true;
+  if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING") return false;
+  return false; // default seguro
+};
+
+const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
+const encodeStatus = (bool) =>
+  BACKEND_STATUS_MODE === "enum" ? (bool ? "EM_ANDAMENTO" : "PENDENTE") : !!bool;
+
 const COLORS = {
   "Próximas": "#787878",
   "Em andamento": "#2d96ff",
@@ -183,23 +194,27 @@ const fmtDate = (d) => {
 
 // Normaliza o "status de coluna" a partir dos campos atuais (boolean + datas)
 function pickColumn(activity) {
+  // completedAt manda para Histórico
   if (activity?.completedAt) return "Histórico";
-  if (activity?.status === true) return "Em andamento";
 
+  const statusBool = normalizeStatus(activity?.status);
+  if (statusBool) return "Em andamento";
+
+  // Sem completedAt e sem estar em andamento: Próximas vs Pendente por expectedDate
   const now = new Date();
   const exp = activity?.expectedDate ? new Date(activity.expectedDate) : null;
-
   if (exp && exp.getTime() > now.getTime()) return "Próximas";
+
   return "Pendente";
 }
 
 // Ao soltar o card em uma coluna, como persistir (compat com status boolean atual)
 function patchForColumn(colId) {
   const base = { completedAt: null };
-  if (colId === "Em andamento") return { ...base, status: true };
-  if (colId === "Histórico") return { status: false, completedAt: new Date().toISOString() };
-  // "Próximas" e "Pendente" mantêm status false
-  return { ...base, status: false };
+  if (colId === "Em andamento") return { ...base, status: encodeStatus(true) };
+  if (colId === "Histórico")    return { status: encodeStatus(false), completedAt: new Date().toISOString() };
+  // "Próximas" e "Pendente" ficam como "não em andamento"
+  return { ...base, status: encodeStatus(false) };
 }
 
 // --- Card (mantendo layout anterior) ---
