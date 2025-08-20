@@ -34,13 +34,43 @@ import {
   useAtividades,
 } from "@/contexts/AtividadesContext";
 
+// Normaliza qualquer formato vindo do backend para boolean
+const normalizeStatus = (s) => {
+  if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS")
+    return true;
+  if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING")
+    return false;
+  return false; // default seguro
+};
+
+// >>> Ajuste conforme seu backend espera receber o status <<<
+const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
+const encodeStatus = (bool) =>
+  BACKEND_STATUS_MODE === "enum"
+    ? bool
+      ? "EM_ANDAMENTO"
+      : "PENDENTE"
+    : !!bool;
+
 function HeaderResumo() {
   const { selected } = useCondominoUI();
   const { stats, loading } = useAtividades();
 
-  const total = stats?.total ?? 0;
-  const pendentes = stats?.pendentes ?? 0;
-  const funcionando = stats?.emAndamento ?? 0; 
+  // fallback seguro baseado nos itens carregados
+  const safe = useMemo(() => {
+    const total = items.length;
+    const emAndamento = items.filter((a) => normalizeStatus(a?.status)).length;
+    const pendentes = total - emAndamento;
+    return { total, emAndamento, pendentes };
+  }, [items]);
+
+  const total = Number.isFinite(stats?.total) ? stats.total : safe.total;
+  const funcionando = Number.isFinite(stats?.emAndamento)
+    ? stats.emAndamento
+    : safe.emAndamento;
+  const pendentes = Number.isFinite(stats?.pendentes)
+    ? stats.pendentes
+    : safe.pendentes;
 
   return (
     <Stack
@@ -111,13 +141,17 @@ function CronogramaInner() {
   const handleSaveDialog = useCallback(
     async (payload, { mode }) => {
       try {
-        // NÃO engula o erro aqui; deixe-o subir pro diálogo
-        const result =
-          mode === "edit" && payload?.id
-            ? await updateAtividade(payload.id, payload)
-            : await createAtividade(payload, id);
+        // clona e normaliza/encode status se vier no payload
+        const dto = { ...payload };
+        if ("status" in dto) {
+          dto.status = encodeStatus(normalizeStatus(dto.status));
+        }
 
-        // sucesso: recarrega lista; o próprio diálogo fechará após o await onSave
+        const result =
+          mode === "edit" && dto?.id
+            ? await updateAtividade(dto.id, dto)
+            : await createAtividade(dto, id);
+
         await load({ condominioId: id, reset: true });
         return result;
       } catch (e) {
