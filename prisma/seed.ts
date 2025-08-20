@@ -1,77 +1,101 @@
-// prisma/seed.js
+// prisma/seed.ts
+/* eslint-disable no-console */
+const {
+  PrismaClient,
+  AtividadeStatus,
+  Prioridade,
+  BudgetStatus,
+  Role,
+} = require("@prisma/client");
 
-const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Criar (ou encontrar) a Empresa (Tenant) principal.
-  // O usuário administrador precisa pertencer a uma empresa.
-  // Usamos 'upsert' com um campo único (CNPJ) para evitar duplicatas ao rodar o seed várias vezes.
+  // 1) Empresa (tenant) principal
   const empresaPrincipal = await prisma.empresa.upsert({
-    where: { cnpj: '00.000.000/0001-00' },
+    where: { cnpj: "00.000.000/0001-00" },
     update: {},
     create: {
-      name: 'Empresa Matriz',
-      cnpj: '00.000.000/0001-00',
+      name: "Empresa Matriz",
+      cnpj: "00.000.000/0001-00",
     },
-  })
+  });
+  console.log(`🏢 Empresa "${empresaPrincipal.name}" criada/encontrada com sucesso.`);
 
-  console.log(`🏢 Empresa "${empresaPrincipal.name}" criada/encontrada com sucesso.`)
-
-  // 2. Criar o Usuário Administrador e associá-lo à Empresa principal.
-  // Na cláusula 'create', usamos 'connect' para vincular este novo usuário
-  // ao ID da empresa que acabamos de criar.
+  // 2) Usuário admin vinculado à empresa
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
+    where: { email: "admin@example.com" },
     update: {},
     create: {
-      email: 'admin@example.com',
-      name: 'Administrador',
-      // hash gerado para a senha "123456789"
-      passwordHash: '$2b$10$b4ygrwy0x68hLVIb6tpySebA11HLSVdLs3tBYnSE8HtTAp.zTSzCi',
-      role: 'ADMIN',
-      empresa: {
-        connect: {
-          id: empresaPrincipal.id,
-        },
-      },
+      email: "admin@example.com",
+      name: "Administrador",
+      // hash da senha "123456789"
+      passwordHash: "$2b$10$b4ygrwy0x68hLVIb6tpySebA11HLSVdLs3tBYnSE8HtTAp.zTSzCi",
+      role: Role.ADMIN, // <— enum
+      empresa: { connect: { id: empresaPrincipal.id } },
     },
-  })
+  });
+  console.log(`👤 Usuário "${adminUser.name}" criado e associado à empresa "${empresaPrincipal.name}".`);
 
-  console.log(`👤 Usuário "${adminUser.name}" criado e associado à empresa "${empresaPrincipal.name}".`)
-
-  // (Opcional, mas recomendado) 3. Criar um Condomínio de exemplo para essa empresa.
+  // 3) Condomínio de exemplo
   const condominioExemplo = await prisma.condominio.upsert({
-    where: { cnpj: '11.111.111/0001-11' }, // Usamos o CNPJ para o 'upsert'
+    where: { cnpj: "11.111.111/0001-11" },
     update: {},
     create: {
-        name: 'Condomínio Central',
-        cnpj: '11.111.111/0001-11',
-        address: 'Avenida Bezerra de Menezes, 1000',
-        neighborhood: 'Centro',
-        city: 'Fortaleza',
-        state: 'CE',
-        type: 'Residencial',
-        empresa: {
-            connect: {
-                id: empresaPrincipal.id
-            }
-        }
-    }
+      name: "Condomínio Central",
+      cnpj: "11.111.111/0001-11",
+      address: "Avenida Bezerra de Menezes, 1000",
+      neighborhood: "Centro",
+      city: "Fortaleza",
+      state: "CE",
+      type: "Residencial",
+      empresa: { connect: { id: empresaPrincipal.id } },
+    },
+  });
+  console.log(
+    `🏙️  Condomínio "${condominioExemplo.name}" criado e associado à empresa "${empresaPrincipal.name}".`
+  );
+
+  // 4) Atividade de exemplo (agora com enums!)
+  const atividadeExemplo = await prisma.atividade.create({
+    data: {
+      name: "Bomba de Água Piscina",
+      type: "Bomba Hidráulica",
+      quantity: 1,
+      model: "Jacuzzi 1CV-Plus",
+      location: "Casa de Máquinas da Piscina",
+
+      // antes: status: true
+      status: AtividadeStatus.EM_ANDAMENTO,
+
+      // antes: prioridade: "Médio"
+      prioridade: Prioridade.MEDIO,
+
+      frequencia: "A cada mês",
+      equipe: "Equipe interna",
+      tipoAtividade: "Preventiva",
+      observacoes: "Verificar ruídos e vazamentos durante a operação mensal.",
+
+      // opcional: já definir orçamento (tem default SEM_ORCAMENTO no schema)
+      budgetStatus: BudgetStatus.SEM_ORCAMENTO,
+
+      empresa: { connect: { id: empresaPrincipal.id } },
+      condominio: { connect: { id: condominioExemplo.id } },
+    },
   });
 
-  console.log(`🏙️  Condomínio "${condominioExemplo.name}" criado e associado à empresa "${empresaPrincipal.name}".`)
+  console.log(
+    `🔧 Atividade "${atividadeExemplo.name}" criada e associada ao condomínio "${condominioExemplo.name}".`
+  );
 
-
-  console.log('\n✅ Seed executado com sucesso!')
+  console.log("\n✅ Seed executado com sucesso!");
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro ao executar o seed:', e)
-    process.exit(1)
+    console.error("❌ Erro ao executar o seed:", e);
+    process.exit(1);
   })
   .finally(async () => {
-    // Garante que a conexão com o banco seja fechada.
-    await prisma.$disconnect()
-  })
+    await prisma.$disconnect();
+  });
