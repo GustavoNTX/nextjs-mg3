@@ -11,8 +11,11 @@ datasource db {
 
 model Empresa {
   id        String   @id @default(uuid())
-  name      String   @db.VarChar(120)
-  cnpj      String   @unique @db.Citext
+  name      String   @db.VarChar(255)
+  cnpj      String?  @db.VarChar(120)
+  empresaToken String   @unique @default(uuid())
+  email        String   @unique @db.VarChar(255)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -25,7 +28,7 @@ model Empresa {
 
 model User {
   id           String  @id @default(uuid())
-  email        String  @unique @db.Citext
+  email        String  @unique @db.VarChar(255)
   name         String? @db.VarChar(120)
   passwordHash String  @db.VarChar(255)
   refreshToken String? @db.Text
@@ -43,7 +46,7 @@ model User {
 model Condominio {
   id           String  @id @default(uuid())
   name         String  @db.VarChar(120)
-  cnpj         String? @unique @db.Citext
+  cnpj         String? @unique @db.VarChar(255)
   address      String  @db.VarChar(160)
   neighborhood String  @db.VarChar(80)
   city         String  @db.VarChar(80)

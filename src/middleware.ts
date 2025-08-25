@@ -13,6 +13,8 @@ const PUBLIC_ROUTES = [
   "/api/auth/refresh",
   "/api/health",
   "/api/logout",
+  "/api/empresas",
+  "/api/register",
 ];
 
 const enc = new TextEncoder();

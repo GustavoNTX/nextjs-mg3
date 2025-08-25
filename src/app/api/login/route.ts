@@ -10,7 +10,6 @@ const prisma = new PrismaClient();
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-    console.log("TESTE      ", email, password);
     if (typeof email !== "string" || typeof password !== "string") {
       return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
     }
