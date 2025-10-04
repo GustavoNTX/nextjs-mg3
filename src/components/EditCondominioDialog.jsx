@@ -76,13 +76,23 @@ export default function EditCondominioDialog({
     onClose();
   };
 
-  const handleOpenCronograma = () => {
-    enterCronograma({
-      id: condominio.id,
-      name: condominio.name,
-      logoUrl: condominio.imageUrl,
-    });
-    router.push(`/cronograma/${condominio.id}`);
+  const handleOpenCronograma = (alvoId = condominio?.id) => {
+    if (alvoId) {
+      enterCronograma({
+        id: alvoId,
+        name: condominio?.name ?? "",
+        logoUrl: condominio?.imageUrl ?? null,
+      });
+      router.push(`/cronograma/${alvoId}`);
+    } else {
+      // modo "Todos"
+      enterCronograma({
+        id: null,
+        name: "Todos os condomínios",
+        logoUrl: null,
+      });
+      router.push(`/cronograma`);
+    }
   };
 
   return (
@@ -234,7 +244,7 @@ export default function EditCondominioDialog({
           <Button
             variant="contained"
             endIcon={<ArrowForwardIosIcon />}
-            onClick={handleOpenCronograma}
+            onClick={() => handleOpenCronograma(condominio.id)}
           >
             Abrir Cronograma
           </Button>

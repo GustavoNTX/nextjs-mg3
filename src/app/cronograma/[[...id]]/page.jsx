@@ -106,13 +106,14 @@ function CronogramaInner() {
   const { fetchWithAuth } = useAuth();
   const router = useRouter();
   const params = useParams();
-
+  const rawId = params?.id;
   const id =
-    typeof params?.id === "string"
-      ? params.id
-      : Array.isArray(params?.id)
-      ? params.id[0]
+    typeof rawId === "string"
+      ? rawId
+      : Array.isArray(rawId)
+      ? rawId[0]
       : undefined;
+  const singleMode = !!id;
 
   const [currentTab, setCurrentTab] = useState(0);
   const [loadingCondominio, setLoadingCondominio] = useState(true);
@@ -151,9 +152,9 @@ function CronogramaInner() {
         const result =
           mode === "edit" && dto?.id
             ? await updateAtividade(dto.id, dto)
-            : await createAtividade(dto, id);
+            : await createAtividade(dto, id ?? dto?.condominioId);
 
-        await load({ condominioId: id, reset: true });
+        await load({ condominioId: id ?? undefined, reset: true });
         return result;
       } catch (e) {
         console.error(e);
@@ -167,9 +168,13 @@ function CronogramaInner() {
     setAddAtividadeOpen(false);
   }, []);
 
-  // carrega dados do condomínio e define selected
+  // carrega dados do condomínio (ou define "Todos" se sem id)
   useEffect(() => {
-    if (!id) return;
+    if (!singleMode) {
+      setSelected({ id: null, name: "Todos os condomínios", logoUrl: null });
+      setLoadingCondominio(false);
+      return;
+    }
     setSelected((prev) => prev ?? { id, name: "Carregando...", logoUrl: null });
 
     const controller = new AbortController();
@@ -205,15 +210,14 @@ function CronogramaInner() {
     })();
 
     return () => controller.abort();
-  }, [id, fetchWithAuth, router, setSelected]);
+  }, [singleMode, id, fetchWithAuth, router, setSelected]);
 
-  // carrega atividades ao trocar o condomínio
+  // carrega atividades (todas quando não houver id)
   useEffect(() => {
-    if (!id) return;
-    load({ condominioId: id, reset: true });
+    load({ condominioId: id ?? undefined, reset: true });
   }, [id, load]);
 
-  if (!id || loadingCondominio) return null;
+  if (singleMode && loadingCondominio) return null;
 
   return (
     <>
