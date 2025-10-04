@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/components/Layout";
 import {
@@ -54,12 +54,13 @@ const encodeStatus = (bool) =>
 
 function HeaderResumo() {
   const { selected } = useCondominoUI();
-  const { stats, loading } = useAtividades();
+  const { items = [], stats, loading } = useAtividades();
 
   // fallback seguro baseado nos itens carregados
   const safe = useMemo(() => {
-    const total = items.length;
-    const emAndamento = items.filter((a) => normalizeStatus(a?.status)).length;
+    const list = Array.isArray(items) ? items : [];
+    const total = list.length;
+    const emAndamento = list.filter((a) => normalizeStatus(a?.status)).length;
     const pendentes = total - emAndamento;
     return { total, emAndamento, pendentes };
   }, [items]);
