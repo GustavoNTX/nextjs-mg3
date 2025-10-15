@@ -40,9 +40,25 @@ const normalizeDate = (date: Date): Date => {
 const parseDate = (value: string | Date): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return normalizeDate(value);
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return normalizeDate(new Date(year, month - 1, day));
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const slice = trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+    const match = slice.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const [, year, month, day] = match;
+      return normalizeDate(new Date(Number(year), Number(month) - 1, Number(day)));
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return normalizeDate(parsed);
+    }
+  }
+
+  return null;
 };
 
 const differenceInDays = (start: Date, end: Date): number => {

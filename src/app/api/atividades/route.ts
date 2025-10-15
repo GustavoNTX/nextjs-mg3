@@ -101,8 +101,16 @@ function ensureEmpresaMatch(authEmpresaId: string, inputEmpresaId?: string) {
   if (authEmpresaId !== inputEmpresaId) throw json(403, { error: "empresaId não corresponde ao usuário" });
 }
 
-async function assertCondominioDaEmpresa(condominioId: string | undefined, empresaId: string) {
-  if (!condominioId) throw json(400, { error: "condominioId é obrigatório" });
+async function assertCondominioDaEmpresa(
+  condominioId: string | undefined,
+  empresaId: string,
+  options: { required?: boolean } = {}
+) {
+  const { required = true } = options;
+  if (!condominioId) {
+    if (required) throw json(400, { error: "condominioId é obrigatório" });
+    return;
+  }
   const condo = await prisma.condominio.findFirst({
     where: { id: condominioId, empresaId },
     select: { id: true },
@@ -111,7 +119,8 @@ async function assertCondominioDaEmpresa(condominioId: string | undefined, empre
 }
 
 /** -------- GET (lista) --------
- * Requer: empresaId (query), condominioId (query).
+ * Requer: empresaId (query).
+ * condominioId é opcional — quando ausente, lista todos os condomínios da empresa.
  * Suporta: q, prioridade, status (boolean OU enum), paginação take/cursor.
  */
 export async function GET(req: NextRequest) {
@@ -125,7 +134,7 @@ export async function GET(req: NextRequest) {
     ensureEmpresaMatch(authEmpresaId, empresaId);
 
     const condominioId = searchParams.get("condominioId") ?? undefined;
-    await assertCondominioDaEmpresa(condominioId, authEmpresaId);
+    await assertCondominioDaEmpresa(condominioId, authEmpresaId, { required: false });
 
     const q = searchParams.get("q") ?? undefined;
     const prioridadeRaw = searchParams.get("prioridade") ?? undefined;
@@ -145,7 +154,7 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       empresaId: authEmpresaId,
-      condominioId,
+      ...(condominioId ? { condominioId } : {}),
       ...(q
         ? {
             OR: [

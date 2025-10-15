@@ -1,7 +1,7 @@
 // src/components/mobile/Header.jsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   AppBar,
@@ -16,6 +16,7 @@ import {
   MenuItem,
   Avatar,
   Button,
+  Badge,
   useTheme,
 } from "@mui/material";
 import {
@@ -25,6 +26,9 @@ import {
 } from "@mui/icons-material";
 import { useCondominoUIOptional } from "@/contexts/CondominoUIContext";
 import NotificationsModal from "@/components/shared/NotificationsModal";
+import { useAtividadesOptional } from "@/contexts/AtividadesContext";
+import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
+import { isTaskDueToday } from "@/utils/dateLogic";
 
 export default function HeaderMobile({
   title,
@@ -39,6 +43,8 @@ export default function HeaderMobile({
 }) {
   const theme = useTheme();
   const ui = useCondominoUIOptional();
+  const atividades = useAtividadesOptional();
+  const empresaItems = atividades?.empresaItems ?? [];
 
   const effectiveSearch = ui?.search ?? search ?? "";
   const effectiveSetSearch = ui?.setSearch ?? setSearch ?? (() => {});
@@ -48,6 +54,12 @@ export default function HeaderMobile({
   const handleSair = ui?.sair ?? onSair ?? (() => {});
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const notificationsCount = useMemo(() => {
+    const reference = new Date();
+    const tasks = adaptAtividadesToTasks(empresaItems);
+    return tasks.filter((task) => isTaskDueToday(task, reference)).length;
+  }, [empresaItems]);
 
   const handleOpenNotifications = () => setNotificationsOpen(true);
   const handleCloseNotifications = () => setNotificationsOpen(false);
@@ -98,7 +110,14 @@ export default function HeaderMobile({
             <></>
           )}
           <IconButton onClick={handleOpenNotifications}>
-            <NotificationsIcon />
+            <Badge
+              color="error"
+              badgeContent={notificationsCount}
+              overlap="circular"
+              invisible={!notificationsCount}
+            >
+              <NotificationsIcon />
+            </Badge>
           </IconButton>
         </Toolbar>
       </AppBar>

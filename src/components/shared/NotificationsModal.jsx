@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   Modal,
   Box,
@@ -15,46 +15,9 @@ import {
   useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { useAtividadesOptional } from "@/contexts/AtividadesContext";
+import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
 import { isTaskDueToday, getNextDueDate, sortTasksByNextDueDate } from "@/utils/dateLogic";
-
-const mockActivities = [
-  {
-    id: 1,
-    name: "Verificar extintores",
-    frequency: "A cada seis meses",
-    startDate: "2025-05-15",
-  },
-  {
-    id: 2,
-    name: "Limpeza diária do hall de entrada",
-    frequency: "Todos os dias",
-    startDate: "2025-01-01",
-  },
-  {
-    id: 3,
-    name: "Coleta de lixo orgânico",
-    frequency: "Em dias alternados",
-    startDate: "2025-10-14",
-  },
-  {
-    id: 4,
-    name: "Manutenção do portão da garagem",
-    frequency: "A cada mês",
-    startDate: "2025-09-15",
-  },
-  {
-    id: 5,
-    name: "Relatório financeiro semanal",
-    frequency: "A cada semana",
-    startDate: "2025-10-08",
-  },
-  {
-    id: 6,
-    name: "Limpeza da piscina",
-    frequency: "Segunda a sábado",
-    startDate: "2025-01-01",
-  },
-];
 
 const modalStyle = (theme) => ({
   position: "absolute",
@@ -80,46 +43,38 @@ const formatDate = (date) =>
 
 export default function NotificationsModal({ open, onClose }) {
   const theme = useTheme();
-  const [loading, setLoading] = useState(false);
-  const [activities, setActivities] = useState(mockActivities);
+  const atividades = useAtividadesOptional();
+  const empresaItems = atividades?.empresaItems ?? [];
+  const empresaLoading = atividades?.empresaLoading ?? false;
+  const empresaError = atividades?.empresaError ?? null;
+  const loadEmpresa = atividades?.loadEmpresa;
 
   const today = useMemo(() => new Date(), [open]);
 
   useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
+    if (!open || !loadEmpresa) return;
+    loadEmpresa({ reset: true });
+  }, [open, loadEmpresa]);
 
-    setLoading(true);
-
-    const timeout = setTimeout(() => {
-      setActivities(sortTasksByNextDueDate(mockActivities, today));
-      setLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timeout);
-  }, [open, today]);
+  const tasks = useMemo(() => {
+    const adapted = adaptAtividadesToTasks(empresaItems);
+    return sortTasksByNextDueDate(adapted, today);
+  }, [empresaItems, today]);
 
   const todayTasks = useMemo(
-    () => activities.filter((task) => isTaskDueToday(task, today)),
-    [activities, today]
+    () => tasks.filter((task) => isTaskDueToday(task, today)),
+    [tasks, today]
   );
 
   const upcomingTasks = useMemo(
     () =>
-      activities
+      tasks
         .filter((task) => !isTaskDueToday(task, today))
         .map((task) => ({
           ...task,
           nextDueDate: getNextDueDate(task, today),
-        }))
-        .sort((a, b) => {
-          if (!a.nextDueDate && !b.nextDueDate) return 0;
-          if (!a.nextDueDate) return 1;
-          if (!b.nextDueDate) return -1;
-          return a.nextDueDate.getTime() - b.nextDueDate.getTime();
-        }),
-    [activities, today]
+        })),
+    [tasks, today]
   );
 
   return (
@@ -132,12 +87,18 @@ export default function NotificationsModal({ open, onClose }) {
           <Chip label={formatDate(today)} color="default" variant="outlined" />
         </Stack>
 
-        {loading ? (
+        {empresaLoading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={32} />
           </Box>
         ) : (
           <>
+            {empresaError && (
+              <Typography color="error" variant="body2" sx={{ mb: 2 }}>
+                {empresaError}
+              </Typography>
+            )}
+
             <Box>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -165,7 +126,14 @@ export default function NotificationsModal({ open, onClose }) {
                     >
                       <ListItemText
                         primary={task.name}
-                        secondary={`Frequência: ${task.frequency}`}
+                        secondary={
+                          [
+                            `Frequência: ${task.frequency}`,
+                            task.condominioName ? `Condomínio: ${task.condominioName}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")
+                        }
                         primaryTypographyProps={{ fontWeight: 600 }}
                       />
                     </ListItem>
@@ -207,9 +175,15 @@ export default function NotificationsModal({ open, onClose }) {
                       <ListItemText
                         primary={task.name}
                         secondary={
-                          task.nextDueDate
-                            ? `Próxima ocorrência: ${formatDate(task.nextDueDate)} • Frequência: ${task.frequency}`
-                            : `Frequência: ${task.frequency}`
+                          [
+                            task.nextDueDate
+                              ? `Próxima ocorrência: ${formatDate(task.nextDueDate)}`
+                              : "Sem próximas ocorrências definidas",
+                            `Frequência: ${task.frequency}`,
+                            task.condominioName ? `Condomínio: ${task.condominioName}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")
                         }
                       />
                     </ListItem>

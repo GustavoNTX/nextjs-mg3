@@ -16,6 +16,13 @@ const AtividadesContext = createContext(null);
 // endpoints comuns p/ descobrir empresa do usuário
 const EMPRESA_ENDPOINTS = ["/api/empresas/minha"];
 
+const DEFAULT_FILTERS = { q: "", prioridade: null, status: null };
+const normalizeFilters = (value) => ({
+  q: value?.q ?? "",
+  prioridade: value?.prioridade ?? null,
+  status: value?.status ?? null,
+});
+
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
 
@@ -24,14 +31,20 @@ export function AtividadesProvider({ children }) {
   const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState(null);
 
+  const [empresaItems, setEmpresaItems] = useState([]);
+  const [empresaLoading, setEmpresaLoading] = useState(false);
+  const [empresaNextCursor, setEmpresaNextCursor] = useState(null);
+  const [empresaError, setEmpresaError] = useState(null);
+
   const [empresaId, setEmpresaId] = useState(() => user?.empresaId ?? null);
   const [condominioId, setCondominioId] = useState(null);
-  const [filters, setFilters] = useState({ q: "", prioridade: null, status: null });
+  const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
 
   // refs para leituras estáveis
   const empresaIdRef = useRef(empresaId);
   const condominioIdRef = useRef(condominioId);
   const filtersRef = useRef(filters);
+  const empresaFiltersRef = useRef(normalizeFilters());
 
   useEffect(() => { empresaIdRef.current = empresaId; }, [empresaId]);
   useEffect(() => { condominioIdRef.current = condominioId; }, [condominioId]);
@@ -73,10 +86,10 @@ export function AtividadesProvider({ children }) {
   }, [fetchWithAuth, user]);
 
   const buildQuery = (empId, cId, f, opts = {}) => {
-    if (!empId || !cId) return null;
+    if (!empId) return null;
     const params = new URLSearchParams();
     params.set("empresaId", empId);
-    params.set("condominioId", cId);
+    if (cId) params.set("condominioId", cId);
     const { q, prioridade, status } = f || {};
     if (q) params.set("q", q);
     if (prioridade) params.set("prioridade", String(prioridade));
@@ -137,6 +150,54 @@ export function AtividadesProvider({ children }) {
     await load({ cursor: nextCursor, reset: false });
   }, [nextCursor, load]);
 
+  const loadEmpresa = useCallback(
+    async ({ empresaId: emp, filters: f, reset = true, take = 100, cursor } = {}) => {
+      setEmpresaError(null);
+      try {
+        const finalEmpresa = emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
+        if (!finalEmpresa) {
+          setEmpresaError("empresaId ausente.");
+          return;
+        }
+
+        const normalizedFilters = f ? normalizeFilters(f) : { ...empresaFiltersRef.current };
+
+        if (reset) {
+          empresaFiltersRef.current = normalizedFilters;
+          setEmpresaNextCursor(null);
+        }
+
+        setEmpresaLoading(true);
+
+        const qs = buildQuery(finalEmpresa, undefined, normalizedFilters, { take, cursor });
+        if (!qs) {
+          setEmpresaError("Parâmetros inválidos.");
+          return;
+        }
+
+        const res = await fetchWithAuth(`/api/atividades?${qs}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Falha ao carregar atividades da empresa");
+        const json = await res.json();
+        setEmpresaItems((old) => (reset ? json.items : [...old, ...json.items]));
+        setEmpresaNextCursor(json.nextCursor ?? null);
+      } catch (e) {
+        setEmpresaError(e?.message || "Erro ao carregar atividades da empresa");
+      } finally {
+        setEmpresaLoading(false);
+      }
+    },
+    [fetchWithAuth, resolveEmpresaId]
+  );
+
+  const loadEmpresaMore = useCallback(async () => {
+    if (!empresaNextCursor) return;
+    await loadEmpresa({ cursor: empresaNextCursor, reset: false });
+  }, [empresaNextCursor, loadEmpresa]);
+
+  useEffect(() => {
+    loadEmpresa({ reset: true });
+  }, [loadEmpresa]);
+
   const createAtividade = useCallback(
     async (data, fallbackCondominioId) => {
       const emp = empresaIdRef.current ?? (await resolveEmpresaId());
@@ -179,6 +240,13 @@ export function AtividadesProvider({ children }) {
         return okCondo && okStatus && okPri ? [created, ...old] : old;
       });
 
+      setEmpresaItems((old) => {
+        if (!old?.length) return [created];
+        const exists = old.some((item) => item.id === created.id);
+        if (exists) return old.map((item) => (item.id === created.id ? created : item));
+        return [created, ...old];
+      });
+
       return created;
     },
     [fetchWithAuth, resolveEmpresaId]
@@ -216,6 +284,7 @@ export function AtividadesProvider({ children }) {
 
       const updated = await res.json();
       setItems((old) => old.map((it) => (it.id === id ? updated : it)));
+      setEmpresaItems((old) => old.map((it) => (it.id === id ? updated : it)));
       return updated;
     },
     [fetchWithAuth, items, resolveEmpresaId]
@@ -243,6 +312,7 @@ export function AtividadesProvider({ children }) {
         throw new Error(err?.error || "Erro ao excluir atividade");
       }
       setItems((old) => old.filter((it) => it.id !== id));
+      setEmpresaItems((old) => old.filter((it) => it.id !== id));
     },
     [fetchWithAuth, items, resolveEmpresaId]
   );
@@ -260,12 +330,18 @@ export function AtividadesProvider({ children }) {
       loading,
       error,
       nextCursor,
+      empresaItems,
+      empresaLoading,
+      empresaError,
+      empresaNextCursor,
       empresaId,
       condominioId,
       filters,
       stats,
       load,
       loadMore,
+      loadEmpresa,
+      loadEmpresaMore,
       createAtividade,
       updateAtividade,
       deleteAtividade,
@@ -278,12 +354,18 @@ export function AtividadesProvider({ children }) {
       loading,
       error,
       nextCursor,
+      empresaItems,
+      empresaLoading,
+      empresaError,
+      empresaNextCursor,
       empresaId,
       condominioId,
       filters,
       stats,
       load,
       loadMore,
+      loadEmpresa,
+      loadEmpresaMore,
       createAtividade,
       updateAtividade,
       deleteAtividade,
@@ -297,4 +379,8 @@ export const useAtividades = () => {
   const ctx = useContext(AtividadesContext);
   if (!ctx) throw new Error("useAtividades deve ser usado dentro de AtividadesProvider");
   return ctx;
+};
+
+export const useAtividadesOptional = () => {
+  return useContext(AtividadesContext);
 };
