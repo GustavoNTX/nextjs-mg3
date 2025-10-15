@@ -1,7 +1,7 @@
 // src/components/AddAtividadeDialog.jsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, IconButton, Box, Typography, Grid,
@@ -17,40 +17,38 @@ import BusinessIcon from "@mui/icons-material/Business";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 
-const frequenciaOptions = [
+const FREQUENCIAS = [
   "Não se repete","Todos os dias","Em dias alternados","Segunda a sexta","Segunda a sábado",
   "A cada semana","A cada duas semanas","A cada mês","A cada dois meses","A cada três meses",
   "A cada quatro meses","A cada cinco meses","A cada seis meses","A cada ano","A cada dois anos",
   "A cada três anos","A cada cinco anos","A cada dez anos",
 ];
 
-function Section({ icon, title, children, noGap = false }) {
+function Section({ icon, title, children, dense = false }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: noGap ? 0 : 1 }}>
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: dense ? 1 : 2 }}>
         {icon}
-        <Typography variant="subtitle1" fontWeight={700} sx={{ letterSpacing: 0.2 }}>
-          {title}
-        </Typography>
+        <Typography variant="subtitle1" fontWeight={700}>{title}</Typography>
       </Stack>
       {children}
     </Paper>
   );
 }
 
-const AddAtividadeDialog = ({
+export default function AddAtividadeDialog({
   open,
   onClose,
   onSave,
   condominios,
   selectedCondominio,
   mode = "create",          // "create" | "edit"
-  initialData = null,       // objeto opcional para edição
-}) => {
+  initialData = null,       // objeto p/ edição
+}) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // Refs para inputs NÃO-controlados (digitação fica leve)
+  // refs (inputs não-controlados)
   const nameRef = useRef(null);
   const typeRef = useRef(null);
   const qtyRef = useRef(null);
@@ -58,11 +56,11 @@ const AddAtividadeDialog = ({
   const locationRef = useRef(null);
   const obsRef = useRef(null);
 
-  // Estado mínimo para itens que fazem sentido controlados
+  // estado mínimo controlado
   const [ui, setUi] = useState({
     condominio: null,
     status: true,
-    prioridade: "Baixo",
+    prioridade: "BAIXO",         // values no formato do backend
     frequencia: "Não se repete",
     equipe: "Equipe interna",
     tipoAtividade: "Preventiva",
@@ -72,7 +70,7 @@ const AddAtividadeDialog = ({
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // monta defaults quando o diálogo abre (como usamos keepMounted, precisamos setar valor "na mão")
+  // monta defaults quando abre
   useEffect(() => {
     if (!open) return;
 
@@ -81,7 +79,7 @@ const AddAtividadeDialog = ({
         (condominios || []).find((c) => c.id === selectedCondominio.id)) || null;
 
     const d = initialData || {};
-    // Preenche campos de texto
+
     if (nameRef.current) nameRef.current.value = d.name || "";
     if (typeRef.current) typeRef.current.value = d.type || "";
     if (qtyRef.current) qtyRef.current.value = d.quantity != null ? String(d.quantity) : "";
@@ -92,7 +90,7 @@ const AddAtividadeDialog = ({
     setUi({
       condominio: d.condominio || defaultCondo,
       status: d.status ?? true,
-      prioridade: d.prioridade || "Baixo",
+      prioridade: (d.prioridade && String(d.prioridade).toUpperCase()) || "BAIXO",
       frequencia: d.frequencia || "Não se repete",
       equipe: d.equipe || "Equipe interna",
       tipoAtividade: d.tipoAtividade || "Preventiva",
@@ -102,16 +100,18 @@ const AddAtividadeDialog = ({
     setPhotoPreview(null);
   }, [open, initialData, selectedCondominio, condominios]);
 
-  // Preview da imagem
+  // preview imagem
   useEffect(() => {
-    if (ui.photo) {
-      const url = URL.createObjectURL(ui.photo);
-      setPhotoPreview(url);
-      return () => URL.revokeObjectURL(url);
+    if (!ui.photo) {
+      setPhotoPreview(null);
+      return;
     }
-    setPhotoPreview(null);
+    const url = URL.createObjectURL(ui.photo);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
   }, [ui.photo]);
 
+  // handlers
   const handleSelect = (e) => {
     const { name, value } = e.target;
     setUi((p) => ({ ...p, [name]: value }));
@@ -126,7 +126,7 @@ const AddAtividadeDialog = ({
     setUi((p) => ({ ...p, photo: file }));
   };
 
-  const validate = () => {
+  const validate = useCallback(() => {
     const newErrors = {};
     const name = nameRef.current?.value?.trim();
     const type = typeRef.current?.value?.trim();
@@ -134,52 +134,50 @@ const AddAtividadeDialog = ({
     const model = modelRef.current?.value?.trim();
     const location = locationRef.current?.value?.trim();
 
-    if (!name) newErrors.name = "Este campo é obrigatório";
-    if (!type) newErrors.type = "Este campo é obrigatório";
-    if (!quantityStr) newErrors.quantity = "Este campo é obrigatório";
-    if (!model) newErrors.model = "Este campo é obrigatório";
-    if (!location) newErrors.location = "Este campo é obrigatório";
+    if (!name) newErrors.name = "Obrigatório";
+    if (!type) newErrors.type = "Obrigatório";
+    if (!quantityStr) newErrors.quantity = "Obrigatório";
+    if (!model) newErrors.model = "Obrigatório";
+    if (!location) newErrors.location = "Obrigatório";
 
     const condominioId = ui.condominio?.id || selectedCondominio?.id;
     if (!condominioId) newErrors.condominio = "Selecione um condomínio";
 
-    // number check
     const qty = parseInt(quantityStr || "", 10);
-    if (!Number.isFinite(qty) || qty < 1) newErrors.quantity = "Informe um número maior ou igual a 1";
+    if (!Number.isFinite(qty) || qty < 1) newErrors.quantity = "Número ≥ 1";
 
     setErrors(newErrors);
     return { ok: Object.keys(newErrors).length === 0, qty };
-  };
+  }, [ui.condominio?.id, selectedCondominio?.id]);
 
   const handleSave = async () => {
     const { ok, qty } = validate();
-    console.log("ok, qty", ok, qty)
     if (!ok) return;
 
     const condominioId = ui.condominio?.id || selectedCondominio?.id;
 
     const payload = {
-      id: initialData?.id, // útil para update
+      id: initialData?.id,
       name: nameRef.current?.value.trim(),
       type: typeRef.current?.value.trim(),
       quantity: qty,
       model: modelRef.current?.value.trim(),
       condominioId,
       location: locationRef.current?.value.trim(),
-      prioridade: ui.prioridade,
+      // prioridade no formato do backend:
+      prioridade: ui.prioridade, // "BAIXO" | "MÉDIO" | "ALTO"
       frequencia: ui.frequencia,
       equipe: ui.equipe,
       tipoAtividade: ui.tipoAtividade,
       observacoes: obsRef.current?.value || "",
-      status: ui.status,
-      photoUrl: null, // TODO: upload e setar URL
+      status: ui.status, // só será enviado se não removermos abaixo
+      photoUrl: null, // TODO: subir arquivo e preencher URL
     };
 
-    // Se for criação e você quer usar o default do banco para status, remova-o:
+    // criação usa default do banco → não enviar status
     if (mode === "create") delete payload.status;
 
-    // Não enviamos o arquivo bruto
-    // (suba antes, pegue a URL e preencha photoUrl)
+    // não enviamos o arquivo bruto
     delete payload.photo;
 
     try {
@@ -198,6 +196,21 @@ const AddAtividadeDialog = ({
     []
   );
 
+  const canSubmit = useMemo(() => {
+    // checagem rápida para habilitar botão (evita clique inútil)
+    const hasCondo = !!(ui.condominio?.id || selectedCondominio?.id);
+    return hasCondo;
+  }, [ui.condominio?.id, selectedCondominio?.id]);
+
+  const onEnter = useCallback((e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    }
+  }, []);
+
+ const shrinkIf = (v) => v != null && String(v).trim().length > 0;
+
   return (
     <Dialog
       open={open}
@@ -208,23 +221,23 @@ const AddAtividadeDialog = ({
       disableRestoreFocus
       keepMounted
     >
-      <DialogTitle sx={{ pr: 7 }}>
+      <DialogTitle sx={{ pr: 7, display: "flex", alignItems: "center", gap: 1 }}>
         {mode === "edit" ? "Editar Ativo" : "Novo Ativo"}
         <IconButton
           aria-label="Fechar"
           onClick={onClose}
-          sx={{ position: "absolute", right: 8, top: 8, color: (t) => t.palette.grey[500] }}
+          sx={{ ml: "auto", color: (t) => t.palette.grey[500] }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }}>
+      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 } }} onKeyDown={onEnter}>
         <Grid container spacing={2}>
-          {/* Identificação */}
+          {/* Coluna esquerda */}
           <Grid item xs={12} md={6}>
             <Section icon={<InfoOutlinedIcon fontSize="small" />} title="Identificação">
-              <Grid container spacing={2}>
+              <Grid container spacing={1.5}>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -233,6 +246,8 @@ const AddAtividadeDialog = ({
                     error={!!errors.name}
                     helperText={errors.name}
                     required
+                    InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
+
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -243,6 +258,7 @@ const AddAtividadeDialog = ({
                     error={!!errors.type}
                     helperText={errors.type}
                     required
+                    InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -256,6 +272,7 @@ const AddAtividadeDialog = ({
                     required
                     inputProps={{ min: 1 }}
                     InputProps={{ endAdornment: <InputAdornment position="end">un.</InputAdornment> }}
+                    InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -266,52 +283,16 @@ const AddAtividadeDialog = ({
                     error={!!errors.model}
                     helperText={errors.model}
                     required
+                    InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
                   />
                 </Grid>
               </Grid>
             </Section>
-          </Grid>
 
-          {/* Localização e condomínio */}
-          <Grid item xs={12} md={6}>
-            <Section icon={<BusinessIcon fontSize="small" />} title="Localização">
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Autocomplete
-                    options={condominios || []}
-                    getOptionLabel={(option) => option?.name || ""}
-                    isOptionEqualToValue={(opt, val) => opt?.id === val?.id || opt?.name === val?.name}
-                    value={ui.condominio}
-                    onChange={handleCondo}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Condomínio"
-                        placeholder="Selecione"
-                        error={!!errors.condominio}
-                        helperText={errors.condominio}
-                      />
-                    )}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Local (ex.: Bloco A / Casa de máquinas)"
-                    inputRef={locationRef}
-                    error={!!errors.location}
-                    helperText={errors.location}
-                    required
-                  />
-                </Grid>
-              </Grid>
-            </Section>
-          </Grid>
+            <Box sx={{ height: 12 }} />
 
-          {/* Planejamento */}
-          <Grid item xs={12} md={6}>
-            <Section icon={<ScheduleIcon fontSize="small" />} title="Planejamento">
-              <Grid container spacing={2}>
+            <Section icon={<ScheduleIcon fontSize="small" />} title="Planejamento" dense>
+              <Grid container spacing={1.5}>
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Prioridade</InputLabel>
@@ -322,9 +303,9 @@ const AddAtividadeDialog = ({
                       onChange={handleSelect}
                       {...selectMenuProps}
                     >
-                      <MenuItem value="Alto">Alto</MenuItem>
-                      <MenuItem value="Médio">Médio</MenuItem>
-                      <MenuItem value="Baixo">Baixo</MenuItem>
+                      <MenuItem value="ALTO">Alto</MenuItem>
+                      <MenuItem value="MÉDIO">Médio</MenuItem>
+                      <MenuItem value="BAIXO">Baixo</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -354,7 +335,7 @@ const AddAtividadeDialog = ({
                       onChange={handleSelect}
                       {...selectMenuProps}
                     >
-                      {frequenciaOptions.map((opt) => (
+                      {FREQUENCIAS.map((opt) => (
                         <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                       ))}
                     </Select>
@@ -380,28 +361,71 @@ const AddAtividadeDialog = ({
             </Section>
           </Grid>
 
-          {/* Observações & Status/Foto */}
+          {/* Coluna direita */}
           <Grid item xs={12} md={6}>
-            <Section icon={<InfoOutlinedIcon fontSize="small" />} title="Observações">
-              <TextField fullWidth label="Observações" multiline minRows={5} inputRef={obsRef} />
-            </Section>
-            <Box sx={{ height: 12 }} />
-            <Section icon={<PhotoCameraIcon fontSize="small" />} title="Status e anexos" noGap>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={!!ui.status}
-                        onChange={handleSwitch}
-                        name="status"
-                        color="primary"
+            <Section icon={<BusinessIcon fontSize="small" />} title="Localização">
+              <Grid container spacing={1.5}>
+                <Grid item xs={12}>
+                  <Autocomplete
+                    options={condominios || []}
+                    getOptionLabel={(option) => option?.name || ""}
+                    isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
+                    value={ui.condominio}
+                    onChange={handleCondo}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Condomínio"
+                        placeholder="Selecione"
+                        error={!!errors.condominio}
+                        helperText={errors.condominio}
+                        InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
                       />
-                    }
-                    label="Em andamento"
+                    )}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Local (ex.: Bloco A / Casa de máquinas)"
+                    inputRef={locationRef}
+                    error={!!errors.location}
+                    helperText={errors.location}
+                    required
+                    InputLabelProps={{ shrink: shrinkIf(initialData?.name) }}
+                  />
+                </Grid>
+              </Grid>
+            </Section>
+
+            <Box sx={{ height: 12 }} />
+
+            <Section icon={<InfoOutlinedIcon fontSize="small" />} title="Observações" dense>
+              <TextField fullWidth label="Observações" multiline minRows={4} inputRef={obsRef}  InputLabelProps={{ shrink: shrinkIf(initialData?.name) }} />
+            </Section>
+
+            <Box sx={{ height: 12 }} />
+
+            <Section icon={<PhotoCameraIcon fontSize="small" />} title="Status e anexos" dense>
+              <Grid container spacing={1.5} alignItems="center">
+                {/* Mostrar switch apenas no modo edição */}
+                {mode === "edit" && (
+                  <Grid item xs={12} sm={6}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={!!ui.status}
+                          onChange={handleSwitch}
+                          name="status"
+                          color="primary"
+                        />
+                      }
+                      label="Em andamento"
+                    />
+                  </Grid>
+                )}
+
+                <Grid item xs={12} sm={mode === "edit" ? 6 : 12}>
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "flex-start", sm: "flex-end" }}>
                     <Button variant="outlined" startIcon={<AttachFileIcon />} component="label">
                       Adicionar foto
@@ -414,6 +438,7 @@ const AddAtividadeDialog = ({
                     )}
                   </Stack>
                 </Grid>
+
                 {photoPreview && (
                   <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
@@ -458,12 +483,10 @@ const AddAtividadeDialog = ({
         }}
       >
         <Button onClick={onClose} disabled={saving}>Cancelar</Button>
-        <Button onClick={handleSave} variant="contained" startIcon={<SaveIcon />} disabled={saving}>
-          {saving ? "Salvando..." : (mode === "edit" ? "Salvar alterações" : "Salvar")}
+        <Button onClick={handleSave} variant="contained" startIcon={<SaveIcon />} disabled={saving || !canSubmit}>
+          {saving ? "Salvando..." : mode === "edit" ? "Salvar alterações" : "Salvar"}
         </Button>
       </DialogActions>
     </Dialog>
   );
-};
-
-export default React.memo(AddAtividadeDialog);
+}

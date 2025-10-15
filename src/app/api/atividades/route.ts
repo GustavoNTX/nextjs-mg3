@@ -8,7 +8,10 @@ export const revalidate = 0;
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** -------- helpers comuns -------- */
+/** -------- helpers comuns --------
+ * ATENÇÃO: getEmpresaIdFromRequest apenas decodifica o JWT.
+ * Em produção, valide a assinatura do token.
+ */
 async function getEmpresaIdFromRequest(): Promise<string | null> {
   const h = await headers();
 
@@ -92,19 +95,37 @@ function toBudgetEnum(input?: string | null): BudgetStatus | undefined {
   return s.replace(" ", "_") as BudgetStatus;
 }
 
+/** -------- validações de escopo (empresa/condomínio) -------- */
+function ensureEmpresaMatch(authEmpresaId: string, inputEmpresaId?: string) {
+  if (!inputEmpresaId) throw json(400, { error: "empresaId é obrigatório" });
+  if (authEmpresaId !== inputEmpresaId) throw json(403, { error: "empresaId não corresponde ao usuário" });
+}
+
+async function assertCondominioDaEmpresa(condominioId: string | undefined, empresaId: string) {
+  if (!condominioId) throw json(400, { error: "condominioId é obrigatório" });
+  const condo = await prisma.condominio.findFirst({
+    where: { id: condominioId, empresaId },
+    select: { id: true },
+  });
+  if (!condo) throw json(404, { error: "Condomínio não encontrado na sua empresa" });
+}
+
 /** -------- GET (lista) --------
- * Suporta: condominioId (obrigatório), q, prioridade, status (boolean OU enum string),
- * paginação take/cursor.
+ * Requer: empresaId (query), condominioId (query).
+ * Suporta: q, prioridade, status (boolean OU enum), paginação take/cursor.
  */
 export async function GET(req: NextRequest) {
   try {
-    const empresaId = await getEmpresaIdFromRequest();
-    if (!empresaId) return json(401, { error: "Não autorizado" });
+    const authEmpresaId = await getEmpresaIdFromRequest();
+    if (!authEmpresaId) return json(401, { error: "Não autorizado" });
 
     const { searchParams } = new URL(req.url);
 
+    const empresaId = searchParams.get("empresaId") ?? undefined;
+    ensureEmpresaMatch(authEmpresaId, empresaId);
+
     const condominioId = searchParams.get("condominioId") ?? undefined;
-    if (!condominioId) return json(400, { error: "condominioId é obrigatório" });
+    await assertCondominioDaEmpresa(condominioId, authEmpresaId);
 
     const q = searchParams.get("q") ?? undefined;
     const prioridadeRaw = searchParams.get("prioridade") ?? undefined;
@@ -113,7 +134,6 @@ export async function GET(req: NextRequest) {
     const take = Math.min(Math.max(Number(searchParams.get("take") ?? 50), 1), 200);
     const cursor = searchParams.get("cursor") ?? undefined;
 
-    // status pode vir "true"/"false" ou nome do enum
     let whereStatus: AtividadeStatus | undefined;
     if (statusRaw != null) {
       if (statusRaw === "true" || statusRaw === "false") {
@@ -124,9 +144,16 @@ export async function GET(req: NextRequest) {
     }
 
     const where: any = {
-      empresaId,
+      empresaId: authEmpresaId,
       condominioId,
-      ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { model: { contains: q, mode: "insensitive" } }] } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { model: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
       ...(toPrioridadeEnum(prioridadeRaw || undefined) ? { prioridade: toPrioridadeEnum(prioridadeRaw || undefined) } : {}),
       ...(whereStatus ? { status: whereStatus } : {}),
     };
@@ -141,25 +168,27 @@ export async function GET(req: NextRequest) {
 
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
     return NextResponse.json({ items, nextCursor });
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.status) return e; // erros levantados por ensure/assert
     console.error("Atividades.GET error:", e);
     return json(500, { error: "Falha ao listar atividades." });
   }
 }
 
 /** -------- POST (create) --------
- * Aceita status boolean OU enum/string; prioridade e budgetStatus em caixa livre;
- * normaliza tudo para os enums do Prisma.
+ * Requer no body: empresaId, condominioId.
+ * Aceita status boolean OU enum/string; prioridade e budgetStatus em caixa livre.
  */
 const createSchema = z
   .object({
+    empresaId: z.string().uuid(),
+    condominioId: z.string().uuid(),
+
     name: z.string().min(1),
     type: z.string().min(1),
     quantity: z.number().int().positive(),
     model: z.string().min(1),
     location: z.string().min(1),
-
-    condominioId: z.string().uuid(),
 
     // opcionais
     status: z.union([z.boolean(), z.string()]).optional(),
@@ -192,8 +221,8 @@ const createSchema = z
 
 export async function POST(req: NextRequest) {
   try {
-    const empresaId = await getEmpresaIdFromRequest();
-    if (!empresaId) return json(401, { error: "Não autorizado" });
+    const authEmpresaId = await getEmpresaIdFromRequest();
+    if (!authEmpresaId) return json(401, { error: "Não autorizado" });
 
     let body: unknown;
     try {
@@ -209,7 +238,13 @@ export async function POST(req: NextRequest) {
 
     const data = parsed.data;
 
-    // normalizações para os enums do Prisma
+    // empresaId do body deve bater com o do usuário
+    ensureEmpresaMatch(authEmpresaId, data.empresaId);
+
+    // condominioId deve pertencer à empresa
+    await assertCondominioDaEmpresa(data.condominioId, authEmpresaId);
+
+    // normalizações para enums
     const statusEnum = toStatusEnum(data.status ?? undefined);
     const prioridadeEnum = toPrioridadeEnum(data.prioridade ?? undefined);
     const budgetEnum = toBudgetEnum(data.budgetStatus ?? undefined);
@@ -223,7 +258,6 @@ export async function POST(req: NextRequest) {
         location: data.location,
         photoUrl: data.photoUrl ?? null,
 
-        // enums: só envia se veio algo coerente; senão deixa default do schema
         ...(statusEnum ? { status: statusEnum } : {}),
         ...(prioridadeEnum ? { prioridade: prioridadeEnum } : {}),
         ...(budgetEnum ? { budgetStatus: budgetEnum } : {}),
@@ -240,23 +274,21 @@ export async function POST(req: NextRequest) {
 
         tags: data.tags ?? [],
 
-        empresaId,
-        condominioId: data.condominioId,
+        empresaId: authEmpresaId,         // força empresa do usuário
+        condominioId: data.condominioId,  // já validado que pertence à empresa
         appliedStandard: data.appliedStandard ?? undefined,
 
-        // valores monetários (Decimal em Prisma) — pode enviar como number
         costEstimate: data.costEstimate ?? undefined,
         approvedBudget: data.approvedBudget ?? undefined,
       },
+      include: { condominio: { select: { id: true, name: true } } },
     });
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
+    if (e?.status) return e; // erros levantados por ensure/assert
     console.error("Atividades.POST error:", e);
-    const msg =
-      e?.meta?.cause ||
-      e?.message ||
-      "Não foi possível criar a atividade.";
+    const msg = e?.meta?.cause || e?.message || "Não foi possível criar a atividade.";
     return json(400, { error: msg });
   }
 }

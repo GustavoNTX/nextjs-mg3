@@ -1,7 +1,12 @@
-// src/components/ListaAtividades.jsx
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   Box,
   Typography,
@@ -21,9 +26,10 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import BuildIcon from "@mui/icons-material/Build";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditIcon from "@mui/icons-material/Edit";
 import { useAtividades } from "@/contexts/AtividadesContext";
 
-// --- ESTILOS ---
+/* ---------- estilos ---------- */
 
 const TabWrapper = styled(Box)(({ theme }) => ({
   display: "flex",
@@ -44,9 +50,7 @@ const StyledTab = styled("div")(({ theme, $isActive, color }) => ({
   alignItems: "center",
   gap: theme.spacing(0.5),
   transition: "color 0.2s, border-bottom 0.2s",
-  "&:hover": {
-    color: $isActive ? color : theme.palette.text.primary,
-  },
+  "&:hover": { color: $isActive ? color : theme.palette.text.primary },
 }));
 
 const TabCircle = styled("div")(({ color }) => ({
@@ -65,7 +69,7 @@ const CardContainer = styled(Paper)(({ theme }) => ({
 const StatusSpan = styled("span")(({ color }) => ({
   display: "inline-flex",
   alignItems: "center",
-  color: color,
+  color,
   fontSize: "0.875rem",
   fontWeight: "bold",
 }));
@@ -75,7 +79,7 @@ const StatusCircle = styled("div")(({ color }) => ({
   height: 8,
   borderRadius: "50%",
   backgroundColor: color,
-  marginRight: "8px",
+  marginRight: 8,
 }));
 
 const InfoItem = ({ label, children }) => (
@@ -83,62 +87,46 @@ const InfoItem = ({ label, children }) => (
     <Typography
       variant="caption"
       color="text.secondary"
-      component="div"
       sx={{ fontWeight: "bold" }}
     >
       {label}
     </Typography>
-    <Typography variant="body2" component="div">
-      {children || "—"}
-    </Typography>
+    <Typography variant="body2">{children || "—"}</Typography>
   </Box>
 );
 
-// --- HELPERS ---
+/* ---------- helpers ---------- */
 
-// Coloque no topo do arquivo
 const normalizeStatus = (s) => {
   if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS")
     return true;
   if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING")
     return false;
-  return false; // default seguro
+  return false;
 };
-
 const statusLabel = (bool) => (bool ? "Em andamento" : "Pendente");
 const getStatusColor = (bool) => (bool ? "#2d96ff" : "#FF5959");
+const formatDateTime = (v) => (v ? new Date(v).toLocaleString("pt-BR") : "—");
 
-const formatDateTime = (value) => {
-  if (!value) return "—";
-  try {
-    const d = new Date(value);
-    // BR dd/mm/yyyy HH:MM
-    return d.toLocaleString("pt-BR");
-  } catch {
-    return String(value);
-  }
-};
+/* ---------- card ---------- */
 
-// --- CARD ---
-
-const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
+const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit  }) => {
   const statusBool = normalizeStatus(activity.status);
   const statusColor = getStatusColor(statusBool);
   const hasPhoto = Boolean(activity.photoUrl);
 
   return (
     <CardContainer variant="outlined">
-      {/* Cabeçalho */}
       <Grid
         container
         spacing={2}
         alignItems="center"
         justifyContent="space-between"
       >
-        <Grid item xs={12} md={"auto"}>
+        <Grid item xs={12} md="auto">
           <Stack direction="row" alignItems="center" spacing={1}>
-            <BuildIcon fontSize="small" />
-            <Typography variant="h6" component="h3" sx={{ fontWeight: "bold" }}>
+            <ImageIcon fontSize="small" />
+            <Typography variant="h6" sx={{ fontWeight: "bold" }}>
               {activity.name}
             </Typography>
             {activity.prioridade && (
@@ -150,7 +138,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
             )}
           </Stack>
         </Grid>
-        <Grid item xs={12} md={"auto"}>
+        <Grid item xs={12} md="auto">
           <Stack
             direction="row"
             spacing={1}
@@ -161,6 +149,15 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
               <StatusCircle color={statusColor} />
               {statusLabel(statusBool)}
             </StatusSpan>
+
+<IconButton
+              aria-label="Editar"
+              onClick={() => onEdit?.(activity)}
+              size="small"
+              sx={{ ml: 1 }}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
             <IconButton
               aria-label="Excluir"
               onClick={() => onDelete?.(activity.id)}
@@ -175,7 +172,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
 
       <Divider sx={{ my: 2 }} />
 
-      {/* Corpo */}
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} md={4}>
           <InfoItem label="Local">{activity.location}</InfoItem>
@@ -238,7 +234,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
         )}
       </Grid>
 
-      {/* Ações */}
       <Stack
         direction="row"
         spacing={1}
@@ -257,11 +252,11 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete }) => {
   );
 };
 
-// --- COMPONENTE PRINCIPAL ---
+/* ---------- componente principal ---------- */
 
-const ListaAtividades = () => {
+const ListaAtividades = ({ onEdit }) => {
   const theme = useTheme();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
+  const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
   const {
     items,
@@ -275,75 +270,75 @@ const ListaAtividades = () => {
     condominioId,
   } = useAtividades();
 
-  // Abas baseadas no schema atual (boolean)
   const TABS = useMemo(
     () => [
-      {
-        key: "proximos",
-        label: "Proximos",
-        color: theme.palette.text.secondary,
-      },
-      {
-        key: "EM_ANDAMENTO",
-        label: "Em andamento",
-        color: theme.palette.info.main,
-      },
-      { key: "PENDENTE", label: "Pendente", color: "#FF5959" },
-      { key: "HISTORICO", label: "Histórico", color: "rgb(135, 231, 106)" },
+      { key: "PROXIMAS",     label: "Próximas",    color: theme.palette.text.secondary, status: "PROXIMAS" },
+      { key: "EM_ANDAMENTO", label: "Em andamento", color: theme.palette.info.main,      status: "EM_ANDAMENTO" },
+      { key: "PENDENTE",     label: "Pendente",    color: "#FF5959",                      status: "PENDENTE" },
+      { key: "HISTORICO",    label: "Histórico",   color: "rgb(135, 231, 106)",           status: "HISTORICO" },
     ],
-    [theme.palette.text.secondary]
+    [theme.palette.text.secondary, theme.palette.info.main]
   );
 
   const [activeKey, setActiveKey] = useState("EM_ANDAMENTO");
+  const lastQueryRef = useRef({ condo: null, status: null });
 
-  const filtered = useMemo(() => {
-    if (activeKey === "EM_ANDAMENTO")
-      return items.filter((a) => normalizeStatus(a.status) === true);
-    if (activeKey === "PENDENTE")
-      return items.filter((a) => normalizeStatus(a.status) === false);
-    return items;
-  }, [items, activeKey]);
+  useEffect(() => {
+    if (!condominioId) return;
+    const tab = TABS.find((t) => t.key === activeKey);
+    const status = tab?.status;
+
+    const sameCondo = lastQueryRef.current.condo === condominioId;
+    const sameStatus = lastQueryRef.current.status === status;
+    if (sameCondo && sameStatus) return;
+
+    lastQueryRef.current = { condo: condominioId, status };
+    load({ condominioId, reset: true, filters: { status } });
+  }, [condominioId, activeKey, TABS, load]);
+
+  const handleTabClick = useCallback((tabKey) => setActiveKey(tabKey), []);
 
   const handleRefresh = useCallback(() => {
     if (!condominioId) return;
-    load({ condominioId, reset: true });
-  }, [condominioId, load]);
+    const t = TABS.find((x) => x.key === activeKey);
+    load({ condominioId, reset: true, filters: { status: t?.status ?? undefined } });
+  }, [condominioId, activeKey, TABS, load]);
 
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
         const current = normalizeStatus(activity.status);
-
         await updateAtividade(activity.id, { status: !current });
+        handleRefresh();
       } catch (e) {
-        // TODO: snackbar/toast
         console.error(e);
       }
     },
-    [updateAtividade]
+    [updateAtividade, handleRefresh]
   );
 
   const handleDelete = useCallback(
     async (id) => {
       try {
         await deleteAtividade(id);
+        handleRefresh();
       } catch (e) {
         console.error(e);
       }
     },
-    [deleteAtividade]
+    [deleteAtividade, handleRefresh]
   );
 
   return (
     <Box>
-      {/* Abas de status */}
+      {/* Abas */}
       <TabWrapper>
         {TABS.map((t) => (
           <StyledTab
             key={t.key}
             $isActive={activeKey === t.key}
             color={t.color}
-            onClick={() => setActiveKey(t.key)}
+            onClick={() => handleTabClick(t.key)}
           >
             <TabCircle color={t.color} />
             {t.label}
@@ -351,13 +346,13 @@ const ListaAtividades = () => {
         ))}
       </TabWrapper>
 
-      {/* Barra de ações */}
+      {/* Ações */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          flexDirection: isSmallScreen ? "column" : "row",
+          flexDirection: isSmall ? "column" : "row",
           gap: 2,
           mb: 3,
         }}
@@ -371,41 +366,26 @@ const ListaAtividades = () => {
             display: "inline-flex",
             alignItems: "center",
             gap: 1,
-            width: isSmallScreen ? "100%" : "auto",
+            width: isSmall ? "100%" : "auto",
             textAlign: "center",
           }}
         >
-          {/* Quando tiver expectedDate na V2, renderize o range aqui */}
           <Typography variant="body2" color="text.secondary">
             {items.length ? `${items.length} atividades` : "Sem atividades"}
           </Typography>
         </Paper>
 
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ width: isSmallScreen ? "100%" : "auto" }}
-        >
-          <Button
-            onClick={handleRefresh}
-            startIcon={<RefreshIcon />}
-            variant="outlined"
-            fullWidth={isSmallScreen}
-          >
+        <Stack direction="row" spacing={1} sx={{ width: isSmall ? "100%" : "auto" }}>
+          <Button onClick={handleRefresh} startIcon={<RefreshIcon />} variant="outlined" fullWidth={isSmall}>
             Atualizar
           </Button>
-          <Button
-            variant="text"
-            sx={{ color: "#EA6037" }}
-            startIcon={<BuildIcon />}
-            fullWidth={isSmallScreen}
-          >
+          <Button variant="text" sx={{ color: "#EA6037" }} startIcon={<BuildIcon />} fullWidth={isSmall}>
             Filtros
           </Button>
         </Stack>
       </Box>
 
-      {/* Lista / Estados */}
+      {/* Lista */}
       {loading && !items.length ? (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
@@ -414,14 +394,15 @@ const ListaAtividades = () => {
         <Typography color="error" sx={{ textAlign: "center", mt: 4 }}>
           {error}
         </Typography>
-      ) : filtered.length > 0 ? (
+      ) : items.length > 0 ? (
         <>
-          {filtered.map((activity) => (
+          {items.map((activity) => (
             <ActivityCard
               key={activity.id}
               activity={activity}
               onToggleStatus={handleToggleStatus}
               onDelete={handleDelete}
+              onEdit={onEdit}
             />
           ))}
           {nextCursor && (
@@ -433,11 +414,7 @@ const ListaAtividades = () => {
           )}
         </>
       ) : (
-        <Typography
-          variant="h6"
-          color="text.secondary"
-          sx={{ mt: 4, textAlign: "center" }}
-        >
+        <Typography variant="h6" color="text.secondary" sx={{ mt: 4, textAlign: "center" }}>
           Não há atividades para mostrar neste filtro.
         </Typography>
       )}

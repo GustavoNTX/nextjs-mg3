@@ -11,95 +11,114 @@ import React, {
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Se estiver usando enums no backend, você pode importar AtividadeStatus/Prioridade do @prisma/client
-// e usar aqui como string (ex.: "EM_ANDAMENTO") para montar a query.
-
 const AtividadesContext = createContext(null);
 
+// endpoints comuns p/ descobrir empresa do usuário
+const EMPRESA_ENDPOINTS = ["/api/empresas/minha"];
+
 export function AtividadesProvider({ children }) {
-  const { fetchWithAuth } = useAuth();
+  const { fetchWithAuth, user } = useAuth();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState(null);
 
+  const [empresaId, setEmpresaId] = useState(() => user?.empresaId ?? null);
   const [condominioId, setCondominioId] = useState(null);
-  const [filters, setFilters] = useState({
-    q: "",
-    prioridade: null,
-    status: null,
-  });
+  const [filters, setFilters] = useState({ q: "", prioridade: null, status: null });
 
-  // refs para ler o "valor atual" sem colocar nas dependências dos callbacks
-  const filtersRef = useRef(filters);
+  // refs para leituras estáveis
+  const empresaIdRef = useRef(empresaId);
   const condominioIdRef = useRef(condominioId);
+  const filtersRef = useRef(filters);
 
-  useEffect(() => {
-    filtersRef.current = filters;
-  }, [filters]);
-  useEffect(() => {
-    condominioIdRef.current = condominioId;
-  }, [condominioId]);
+  useEffect(() => { empresaIdRef.current = empresaId; }, [empresaId]);
+  useEffect(() => { condominioIdRef.current = condominioId; }, [condominioId]);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
 
-  const buildQuery = (cId, f, opts = {}) => {
+  // se o Auth povoar depois
+  useEffect(() => {
+    if (user?.empresaId && !empresaIdRef.current) {
+      setEmpresaId(user.empresaId);
+    }
+  }, [user]);
+
+  // tenta descobrir empresaId quando faltar
+  const resolveEmpresaId = useCallback(async () => {
+    if (empresaIdRef.current) return empresaIdRef.current;
+    if (user?.empresaId) {
+      setEmpresaId(user.empresaId);
+      return user.empresaId;
+    }
+    for (const url of EMPRESA_ENDPOINTS) {
+      try {
+        const r = await fetchWithAuth(url, { cache: "no-store" });
+        if (!r.ok) continue;
+        const j = await r.json().catch(() => ({}));
+        const eid =
+          j?.empresaId ||
+          j?.user?.empresaId ||
+          j?.me?.empresaId ||
+          j?.profile?.empresaId;
+        if (eid) {
+          setEmpresaId(eid);
+          return eid;
+        }
+      } catch {
+        // tenta o próximo
+      }
+    }
+    throw new Error("empresaId ausente.");
+  }, [fetchWithAuth, user]);
+
+  const buildQuery = (empId, cId, f, opts = {}) => {
+    if (!empId || !cId) return null;
     const params = new URLSearchParams();
-    if (!cId) return null;
+    params.set("empresaId", empId);
     params.set("condominioId", cId);
-
     const { q, prioridade, status } = f || {};
     if (q) params.set("q", q);
-    if (prioridade) params.set("prioridade", String(prioridade)); // ex.: "MEDIO"
-    if (status) params.set("status", String(status)); // ex.: "EM_ANDAMENTO"
-
+    if (prioridade) params.set("prioridade", String(prioridade));
+    if (status) params.set("status", String(status));
     if (opts.take) params.set("take", String(opts.take));
     if (opts.cursor) params.set("cursor", String(opts.cursor));
     return params.toString();
   };
 
-  // ⚠️ load não depende mais de filters/condominioId para não ficar recriando a função
   const load = useCallback(
-    async ({
-      condominioId: cId,
-      filters: f,
-      reset = true,
-      take = 50,
-      cursor,
-    } = {}) => {
+    async ({ empresaId: emp, condominioId: cId, filters: f, reset = true, take = 50, cursor } = {}) => {
       setError(null);
-
-      // prioriza os parâmetros; se não vier, usa o que estiver em ref (estado atual)
-      const finalCondo = cId ?? condominioIdRef.current;
-      const finalFilters = f ?? filtersRef.current;
-
-      const qs = buildQuery(finalCondo, finalFilters, { take, cursor });
-      if (!qs) return;
-
-      if (reset) {
-        setLoading(true);
-        setItems([]);
-        setNextCursor(null);
-        // atualiza estados apenas se mudarem de fato (evita renders desnecessários)
-        if (finalCondo !== condominioIdRef.current) setCondominioId(finalCondo);
-        setFilters((old) => {
-          const same =
-            old?.q === (finalFilters?.q ?? "") &&
-            old?.prioridade === (finalFilters?.prioridade ?? null) &&
-            old?.status === (finalFilters?.status ?? null);
-          return same
-            ? old
-            : {
-                q: finalFilters?.q ?? "",
-                prioridade: finalFilters?.prioridade ?? null,
-                status: finalFilters?.status ?? null,
-              };
-        });
-      }
-
       try {
-        const res = await fetchWithAuth(`/api/atividades?${qs}`, {
-          cache: "no-store",
-        });
+        const finalEmpresa = emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
+        const finalCondo = cId ?? condominioIdRef.current;
+        const finalFilters = f ?? filtersRef.current;
+
+        if (!finalCondo) {
+          setError("Defina um condomínio.");
+          return;
+        }
+
+        const qs = buildQuery(finalEmpresa, finalCondo, finalFilters, { take, cursor });
+        if (!qs) {
+          setError("Parâmetros inválidos.");
+          return;
+        }
+
+        if (reset) {
+          setLoading(true);
+          setItems([]);
+          setNextCursor(null);
+          if (finalCondo !== condominioIdRef.current) setCondominioId(finalCondo);
+          if (finalEmpresa !== empresaIdRef.current) setEmpresaId(finalEmpresa);
+          setFilters((old) => ({
+            q: finalFilters?.q ?? "",
+            prioridade: finalFilters?.prioridade ?? null,
+            status: finalFilters?.status ?? null,
+          }));
+        }
+
+        const res = await fetchWithAuth(`/api/atividades?${qs}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Falha ao carregar atividades");
         const json = await res.json();
         setItems((old) => (reset ? json.items : [...old, ...json.items]));
@@ -110,7 +129,7 @@ export function AtividadesProvider({ children }) {
         setLoading(false);
       }
     },
-    [fetchWithAuth]
+    [fetchWithAuth, resolveEmpresaId]
   );
 
   const loadMore = useCallback(async () => {
@@ -120,21 +139,25 @@ export function AtividadesProvider({ children }) {
 
   const createAtividade = useCallback(
     async (data, fallbackCondominioId) => {
+      const emp = empresaIdRef.current ?? (await resolveEmpresaId());
+      const condo =
+        data.condominioId ??
+        data.condominio?.id ??
+        fallbackCondominioId ??
+        condominioIdRef.current;
+
+      if (!emp) throw new Error("empresaId ausente.");
+      if (!condo) throw new Error("condominioId ausente.");
+
       const payload = {
         ...data,
+        empresaId: emp,
+        condominioId: condo,
         quantity: Number(data.quantity),
-        condominioId:
-          data.condominioId ??
-          data.condominio?.id ??
-          fallbackCondominioId ??
-          condominioIdRef.current,
         photoUrl: data.photoUrl ?? null,
       };
       delete payload.photo;
       delete payload.condominio;
-
-      if (!payload.condominioId)
-        throw new Error("Selecione um condomínio para criar a atividade.");
 
       const res = await fetchWithAuth("/api/atividades", {
         method: "POST",
@@ -147,7 +170,7 @@ export function AtividadesProvider({ children }) {
       }
       const created = await res.json();
 
-      // só insere otimista se bater com o filtro ativo e condomínio atual
+      // otimista se combina com filtro/condomínio atual
       setItems((old) => {
         const f = filtersRef.current;
         const okCondo = created.condominioId === condominioIdRef.current;
@@ -158,15 +181,28 @@ export function AtividadesProvider({ children }) {
 
       return created;
     },
-    [fetchWithAuth]
+    [fetchWithAuth, resolveEmpresaId]
   );
 
   const updateAtividade = useCallback(
-    async (id, data) => {
+    async (id, data, fallbackCondominioId) => {
+      const emp = empresaIdRef.current ?? (await resolveEmpresaId());
+      const existing = items.find((i) => i.id === id);
+      const condo =
+        data?.condominioId ??
+        existing?.condominioId ??
+        fallbackCondominioId ??
+        condominioIdRef.current;
+
+      if (!emp) throw new Error("empresaId ausente.");
+      if (!condo) throw new Error("condominioId ausente.");
+
+      const payload = { ...data, empresaId: emp, condominioId: condo };
+
       const res = await fetchWithAuth(`/api/atividades/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -174,9 +210,7 @@ export function AtividadesProvider({ children }) {
         try {
           const err = await res.json();
           if (err?.error) msg = err.error;
-        } catch {
-          // ignore
-        }
+        } catch {}
         throw new Error(msg);
       }
 
@@ -184,12 +218,24 @@ export function AtividadesProvider({ children }) {
       setItems((old) => old.map((it) => (it.id === id ? updated : it)));
       return updated;
     },
-    [fetchWithAuth, setItems]
+    [fetchWithAuth, items, resolveEmpresaId]
   );
 
   const deleteAtividade = useCallback(
-    async (id) => {
-      const res = await fetchWithAuth(`/api/atividades/${id}`, {
+    async (id, fallbackCondominioId) => {
+      const emp = empresaIdRef.current ?? (await resolveEmpresaId());
+      const existing = items.find((i) => i.id === id);
+      const condo =
+        existing?.condominioId ??
+        fallbackCondominioId ??
+        condominioIdRef.current;
+
+      if (!emp) throw new Error("empresaId ausente.");
+      if (!condo) throw new Error("condominioId ausente.");
+
+      const qs = new URLSearchParams({ empresaId: emp, condominioId: String(condo) }).toString();
+
+      const res = await fetchWithAuth(`/api/atividades/${id}?${qs}`, {
         method: "DELETE",
       });
       if (!res.ok && res.status !== 204) {
@@ -198,14 +244,13 @@ export function AtividadesProvider({ children }) {
       }
       setItems((old) => old.filter((it) => it.id !== id));
     },
-    [fetchWithAuth]
+    [fetchWithAuth, items, resolveEmpresaId]
   );
 
   const stats = useMemo(() => {
     const total = items.length;
-    // Se status agora é enum (ex.: "EM_ANDAMENTO"), ajuste aqui seu agrupamento:
-    const emAndamento = items.filter((i) => i.status === "EM_ANDAMENTO").length;
-    const pendentes = items.filter((i) => i.status === "PENDENTE").length;
+    const emAndamento = items.filter((i) => i.status === "EM_ANDAMENTO" || i.status === true).length;
+    const pendentes = items.filter((i) => i.status === "PENDENTE" || i.status === false).length;
     return { total, emAndamento, pendentes };
   }, [items]);
 
@@ -215,6 +260,7 @@ export function AtividadesProvider({ children }) {
       loading,
       error,
       nextCursor,
+      empresaId,
       condominioId,
       filters,
       stats,
@@ -225,12 +271,14 @@ export function AtividadesProvider({ children }) {
       deleteAtividade,
       setFilters,
       setCondominioId,
+      setEmpresaId,
     }),
     [
       items,
       loading,
       error,
       nextCursor,
+      empresaId,
       condominioId,
       filters,
       stats,
@@ -242,18 +290,11 @@ export function AtividadesProvider({ children }) {
     ]
   );
 
-  return (
-    <AtividadesContext.Provider value={value}>
-      {children}
-    </AtividadesContext.Provider>
-  );
+  return <AtividadesContext.Provider value={value}>{children}</AtividadesContext.Provider>;
 }
 
 export const useAtividades = () => {
   const ctx = useContext(AtividadesContext);
-  if (!ctx)
-    throw new Error(
-      "useAtividades deve ser usado dentro de AtividadesProvider"
-    );
+  if (!ctx) throw new Error("useAtividades deve ser usado dentro de AtividadesProvider");
   return ctx;
 };

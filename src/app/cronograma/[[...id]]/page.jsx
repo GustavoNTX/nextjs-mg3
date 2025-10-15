@@ -46,17 +46,12 @@ const normalizeStatus = (s) => {
 // >>> Ajuste conforme seu backend espera receber o status <<<
 const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
 const encodeStatus = (bool) =>
-  BACKEND_STATUS_MODE === "enum"
-    ? bool
-      ? "EM_ANDAMENTO"
-      : "PENDENTE"
-    : !!bool;
+  BACKEND_STATUS_MODE === "enum" ? (bool ? "EM_ANDAMENTO" : "PENDENTE") : !!bool;
 
 function HeaderResumo() {
   const { selected } = useCondominoUI();
   const { items = [], stats, loading } = useAtividades();
 
-  // fallback seguro baseado nos itens carregados
   const safe = useMemo(() => {
     const list = Array.isArray(items) ? items : [];
     const total = list.length;
@@ -81,10 +76,7 @@ function HeaderResumo() {
       sx={{ mb: 2 }}
     >
       <Stack direction="row" spacing={2} alignItems="center">
-        <Avatar
-          src={selected?.logoUrl || undefined}
-          alt={selected?.name || ""}
-        />
+        <Avatar src={selected?.logoUrl || undefined} alt={selected?.name || ""} />
         <Typography variant="h6" fontWeight={700}>
           {selected?.name || "Condomínio"}
         </Typography>
@@ -108,53 +100,43 @@ function CronogramaInner() {
   const params = useParams();
   const rawId = params?.id;
   const id =
-    typeof rawId === "string"
-      ? rawId
-      : Array.isArray(rawId)
-      ? rawId[0]
-      : undefined;
+    typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
   const singleMode = !!id;
 
   const [currentTab, setCurrentTab] = useState(0);
   const [loadingCondominio, setLoadingCondominio] = useState(true);
   const [addAtividadeOpen, setAddAtividadeOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null); // <- item sendo editado
+  const [editingItem, setEditingItem] = useState(null);
 
   const { items: condominios } = useCondominios();
 
-  // Garanta que seu contexto exponha updateAtividade
+  // do contexto de atividades
   const { load, createAtividade, updateAtividade } = useAtividades();
 
   const handleTabChange = (_e, newValue) => setCurrentTab(newValue);
 
-  // Abrir para criar
   const handleOpenCreate = useCallback(() => {
     setEditingItem(null);
     setAddAtividadeOpen(true);
   }, []);
 
-  // Abrir para editar (recebe o item da lista/kanban/calendário)
   const handleOpenEdit = useCallback((item) => {
     setEditingItem(item || null);
     setAddAtividadeOpen(true);
   }, []);
 
-  // Salvar (criar/editar) — compatível com o AddAtividadeDialog proposto
   const handleSaveDialog = useCallback(
     async (payload, { mode }) => {
       try {
-        // clona e normaliza/encode status se vier no payload
         const dto = { ...payload };
-        if ("status" in dto) {
-          dto.status = encodeStatus(normalizeStatus(dto.status));
-        }
+        if ("status" in dto) dto.status = encodeStatus(normalizeStatus(dto.status));
 
         const result =
           mode === "edit" && dto?.id
             ? await updateAtividade(dto.id, dto)
             : await createAtividade(dto, id ?? dto?.condominioId);
 
-        await load({ condominioId: id ?? undefined, reset: true });
+        if (id) await load({ condominioId: id, reset: true }); // <-- só consulta com condominioId
         return result;
       } catch (e) {
         console.error(e);
@@ -164,21 +146,18 @@ function CronogramaInner() {
     [updateAtividade, createAtividade, id, load]
   );
 
-  const handleCloseDialog = useCallback(() => {
-    setAddAtividadeOpen(false);
-  }, []);
+  const handleCloseDialog = useCallback(() => setAddAtividadeOpen(false), []);
 
-  // carrega dados do condomínio (ou define "Todos" se sem id)
+  // carrega dados do condomínio
   useEffect(() => {
     if (!singleMode) {
-      setSelected({ id: null, name: "Todos os condomínios", logoUrl: null });
+      setSelected({ id: null, name: "Selecione um condomínio", logoUrl: null });
       setLoadingCondominio(false);
       return;
     }
     setSelected((prev) => prev ?? { id, name: "Carregando...", logoUrl: null });
 
     const controller = new AbortController();
-
     (async () => {
       try {
         const res = await fetchWithAuth(`/api/condominios/${id}`, {
@@ -201,9 +180,7 @@ function CronogramaInner() {
           logoUrl: item.imageUrl ?? null,
         });
       } catch (err) {
-        if (err?.name !== "AbortError") {
-          router.replace("/selecione-o-condominio");
-        }
+        if (err?.name !== "AbortError") router.replace("/selecione-o-condominio");
       } finally {
         setLoadingCondominio(false);
       }
@@ -212,9 +189,10 @@ function CronogramaInner() {
     return () => controller.abort();
   }, [singleMode, id, fetchWithAuth, router, setSelected]);
 
-  // carrega atividades (todas quando não houver id)
+  // consulta atividades — SOMENTE se houver condominioId (API exige)
   useEffect(() => {
-    load({ condominioId: id ?? undefined, reset: true });
+    if (!id) return;
+    load({ condominioId: id, reset: true });
   }, [id, load]);
 
   if (singleMode && loadingCondominio) return null;
@@ -238,6 +216,7 @@ function CronogramaInner() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleOpenCreate}
+          disabled={!singleMode}
         >
           Adicionar Atividade
         </Button>
@@ -245,7 +224,6 @@ function CronogramaInner() {
       </Stack>
 
       <Box>
-        {/* Passe onEdit para permitir abrir o diálogo em modo edição (se o componente consumir) */}
         {currentTab === 0 && <ListaAtividades onEdit={handleOpenEdit} />}
         {currentTab === 1 && <CalendarView onEdit={handleOpenEdit} />}
         {currentTab === 2 && <KanbanBoard onEdit={handleOpenEdit} />}
