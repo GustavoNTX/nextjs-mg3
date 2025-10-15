@@ -46,7 +46,11 @@ const normalizeStatus = (s) => {
 // >>> Ajuste conforme seu backend espera receber o status <<<
 const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
 const encodeStatus = (bool) =>
-  BACKEND_STATUS_MODE === "enum" ? (bool ? "EM_ANDAMENTO" : "PENDENTE") : !!bool;
+  BACKEND_STATUS_MODE === "enum"
+    ? bool
+      ? "EM_ANDAMENTO"
+      : "PENDENTE"
+    : !!bool;
 
 function HeaderResumo() {
   const { selected } = useCondominoUI();
@@ -76,7 +80,10 @@ function HeaderResumo() {
       sx={{ mb: 2 }}
     >
       <Stack direction="row" spacing={2} alignItems="center">
-        <Avatar src={selected?.logoUrl || undefined} alt={selected?.name || ""} />
+        <Avatar
+          src={selected?.logoUrl || undefined}
+          alt={selected?.name || ""}
+        />
         <Typography variant="h6" fontWeight={700}>
           {selected?.name || "Condomínio"}
         </Typography>
@@ -100,7 +107,11 @@ function CronogramaInner() {
   const params = useParams();
   const rawId = params?.id;
   const id =
-    typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
+    typeof rawId === "string"
+      ? rawId
+      : Array.isArray(rawId)
+      ? rawId[0]
+      : undefined;
   const singleMode = !!id;
 
   const [currentTab, setCurrentTab] = useState(0);
@@ -129,7 +140,8 @@ function CronogramaInner() {
     async (payload, { mode }) => {
       try {
         const dto = { ...payload };
-        if ("status" in dto) dto.status = encodeStatus(normalizeStatus(dto.status));
+        if ("status" in dto)
+          dto.status = encodeStatus(normalizeStatus(dto.status));
 
         const result =
           mode === "edit" && dto?.id
@@ -180,7 +192,8 @@ function CronogramaInner() {
           logoUrl: item.imageUrl ?? null,
         });
       } catch (err) {
-        if (err?.name !== "AbortError") router.replace("/selecione-o-condominio");
+        if (err?.name !== "AbortError")
+          router.replace("/selecione-o-condominio");
       } finally {
         setLoadingCondominio(false);
       }
@@ -202,15 +215,6 @@ function CronogramaInner() {
       <HeaderResumo />
 
       <Divider sx={{ mb: 2 }} />
-
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs value={currentTab} onChange={handleTabChange}>
-          <Tab label="LISTA" />
-          <Tab label="CALENDÁRIO" />
-          <Tab label="KANBAN" />
-        </Tabs>
-      </Box>
-
       <Stack direction="row" justifyContent="flex-end" spacing={2} mb={3}>
         <Button
           variant="contained"
@@ -220,8 +224,14 @@ function CronogramaInner() {
         >
           Adicionar Atividade
         </Button>
-        <Button variant="outlined">Filtros</Button>
       </Stack>
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs value={currentTab} onChange={handleTabChange}>
+          <Tab label="LISTA" />
+          <Tab label="CALENDÁRIO" />
+          <Tab label="KANBAN" />
+        </Tabs>
+      </Box>
 
       <Box>
         {currentTab === 0 && <ListaAtividades onEdit={handleOpenEdit} />}

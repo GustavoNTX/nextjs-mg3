@@ -13,7 +13,7 @@ export function CondominoUIProvider({ children }) {
   const [selected, setSelected] = useState(null); // { id, name, logoUrl }
   const router = useRouter();
 
-  const enterCronograma = useCallback((condomino) => {
+  const enterAtividades = useCallback((condomino) => {
     // condomino: { id, name, logoUrl }
     setSelected(condomino);
   }, []);
@@ -26,8 +26,8 @@ export function CondominoUIProvider({ children }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ search, setSearch, filtro, setFiltro, selected, setSelected, enterCronograma, sair }),
-    [search, filtro, selected, enterCronograma, sair]
+    () => ({ search, setSearch, filtro, setFiltro, selected, setSelected, enterAtividades, sair }),
+    [search, filtro, selected, enterAtividades, sair]
   );
 
   return <CondominoUIContext.Provider value={value}>{children}</CondominoUIContext.Provider>;

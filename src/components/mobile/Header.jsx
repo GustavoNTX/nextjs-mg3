@@ -124,7 +124,7 @@ export default function HeaderMobile({
 
       <Toolbar />
 
-      {/* Busca + filtro (somem em modo cronograma) */}
+      {/* Busca + filtro (somem em modo atividades) */}
       {!selected && (
         <Box px={2} py={2}>
           <TextField
