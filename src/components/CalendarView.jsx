@@ -21,7 +21,17 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
+
 import { useAtividades } from "@/contexts/AtividadesContext";
+
+// >>> helpers centralizados <<<
+import {
+  inferStatus,        // (atividade) => "PROXIMAS" | "EM_ANDAMENTO" | "PENDENTE" | "HISTORICO"
+  statusLabel,        // (code) => label pt-BR
+  statusColor,        // (code) => cor hex
+  isRunning,          // (atividade) => boolean (true se EM_ANDAMENTO)
+  formatDateTime,     // (date|string|null, opts?) => "dd/mm/aaaa HH:MM"
+} from "@/utils/atividadeStatus";
 
 /* ---------- estilos ---------- */
 const StyledCalendarWrapper = styled("div")(({ theme }) => ({
@@ -30,7 +40,7 @@ const StyledCalendarWrapper = styled("div")(({ theme }) => ({
   ".fc-daygrid-event-dot": { display: "none" },
 }));
 
-/* ---------- helpers ---------- */
+/* ---------- utils locais p/ datas ---------- */
 const toDate = (v) => (v ? new Date(v) : null);
 const isSameDay = (a, b) =>
   a && b &&
@@ -38,33 +48,25 @@ const isSameDay = (a, b) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
 
-const normalizeStatus = (s) => {
-  if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS") return true;
-  if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING") return false;
-  return false;
+/** prioridade: expectedDate > startAt > createdAt (fallback) */
+const pickStart = (a) => toDate(a.expectedDate) || toDate(a.startAt) || toDate(a.createdAt);
+const pickEnd   = (a) => toDate(a.endAt) || toDate(a.completedAt) || null;
+const isAllDay  = (a) => !!a.expectedDate && !a.startAt && !a.endAt;
+
+/** “Zera” a hora para eventos all-day */
+const dateOnly = (d) => {
+  if (!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
-const statusText = (b) => (b ? "Em andamento" : "Pendente");
-const priColor = (p) => {
+
+/** cor de “tag” por prioridade (só estética do calendário) */
+const priorityColor = (p) => {
   const s = String(p || "").toUpperCase();
   if (s.includes("URG")) return "#b71c1c";
   if (s.includes("ALTO")) return "#d32f2f";
   if (s.includes("MÉDIO") || s.includes("MEDIO")) return "#ed6c02";
   if (s.includes("BAIXO")) return "#2e7d32";
   return "#1976d2";
-};
-
-/** escolhe datas da atividade:
- * prioridade: expectedDate > startAt > createdAt (fallback)
- */
-const pickStart = (a) => toDate(a.expectedDate) || toDate(a.startAt) || toDate(a.createdAt);
-const pickEnd   = (a) => toDate(a.endAt) || toDate(a.completedAt) || null;
-const isAllDay  = (a) => !!a.expectedDate && !a.startAt && !a.endAt; // simplificado e útil
-
-/** Datas all-day precisam ser yyyy-mm-dd; para FullCalendar basta passar Date sem hora com allDay:true */
-const dateOnly = (d) => {
-  if (!d) return null;
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  return x;
 };
 
 /* ---------- componente ---------- */
@@ -81,31 +83,32 @@ export default function CalendarView({ onEdit }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("md"));
 
-  // muda view
+  // muda view programaticamente
   useEffect(() => {
     const api = calendarRef.current?.getApi();
     if (api) api.changeView(currentView);
   }, [currentView]);
 
-  // eventos
+  // mapeia atividades -> eventos do FullCalendar
   const events = useMemo(() => {
     return items.map((a) => {
       const start = pickStart(a);
       const end = pickEnd(a);
       const allDay = isAllDay(a);
+      const code = inferStatus(a); // usa helper
 
       return {
         id: a.id,
         title: a.name,
         start: allDay ? dateOnly(start) : start,
-        end: allDay ? undefined : end || undefined, // end exclusivo; opcional
+        end: allDay ? undefined : end || undefined, // end é exclusivo no FC
         allDay,
-        editable: true,       // permite drag/resize
+        editable: true,
         durationEditable: true,
         extendedProps: {
           atividade: a,
+          statusCode: code,
           prioridade: a.prioridade,
-          statusBool: normalizeStatus(a.status),
         },
       };
     });
@@ -124,9 +127,9 @@ export default function CalendarView({ onEdit }) {
   const goPrev = () => calendarRef.current?.getApi().prev();
   const goNext = () => calendarRef.current?.getApi().next();
   const goToday = () => {
-    calendarRef.current?.getApi().today();
-    const view = calendarRef.current?.getApi().view;
-    if (view) setCalendarTitle(view.title);
+    const api = calendarRef.current?.getApi();
+    api?.today();
+    if (api?.view) setCalendarTitle(api.view.title);
   };
 
   // lista do dia selecionado
@@ -143,13 +146,13 @@ export default function CalendarView({ onEdit }) {
 
     try {
       if (event.allDay) {
-        // mover all-day -> ajusta expectedDate
-        await updateAtividade(a.id, { expectedDate: event.start });
+        // mover all-day -> ajusta expectedDate (como ISO)
+        await updateAtividade(a.id, { expectedDate: event.start?.toISOString() });
       } else {
         // mover com hora -> ajusta startAt/endAt
         await updateAtividade(a.id, {
-          startAt: event.start,
-          endAt: event.end || null,
+          startAt: event.start?.toISOString() || null,
+          endAt: event.end?.toISOString() || null,
         });
       }
     } catch (e) {
@@ -166,8 +169,8 @@ export default function CalendarView({ onEdit }) {
 
     try {
       await updateAtividade(a.id, {
-        startAt: event.start,
-        endAt: event.end || null,
+        startAt: event.start?.toISOString() || null,
+        endAt: event.end?.toISOString() || null,
       });
     } catch (e) {
       console.error(e);
@@ -175,12 +178,30 @@ export default function CalendarView({ onEdit }) {
     }
   };
 
-  const onStart = useCallback(async (id) => {
-    await updateAtividade(id, { status: true, startAt: new Date() });
+  // ações de status usando enum novo
+  const handleStart = useCallback(async (id) => {
+    await updateAtividade(id, {
+      status: "EM_ANDAMENTO",
+      startAt: new Date().toISOString(),
+      completedAt: null,
+    });
   }, [updateAtividade]);
 
-  const onFinish = useCallback(async (id) => {
-    await updateAtividade(id, { status: false, completedAt: new Date() });
+  const handleFinish = useCallback(async (id) => {
+    const now = new Date().toISOString();
+    await updateAtividade(id, {
+      status: "HISTORICO",
+      endAt: now,
+      completedAt: now,
+    });
+  }, [updateAtividade]);
+
+  const handleReopen = useCallback(async (id) => {
+    await updateAtividade(id, {
+      status: "PENDENTE",
+      completedAt: null,
+      endAt: null,
+    });
   }, [updateAtividade]);
 
   return (
@@ -236,10 +257,10 @@ export default function CalendarView({ onEdit }) {
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
                 eventContent={(arg) => {
-                  const st = normalizeStatus(arg.event.extendedProps?.statusBool);
+                  const code = arg.event.extendedProps?.statusCode;
+                  const dot = statusColor(code);               // << helper
                   const pri = arg.event.extendedProps?.prioridade;
-                  const dot = st ? "#2d96ff" : "#FF5959";
-                  const tag = priColor(pri);
+                  const tag = priorityColor(pri);
                   return (
                     <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot }} />
@@ -275,7 +296,7 @@ export default function CalendarView({ onEdit }) {
               sx={{ maxHeight: isSmall ? "auto" : "80vh", overflowY: isSmall ? "visible" : "auto" }}
             >
               <Typography variant="h6" gutterBottom>
-                Atividades em {selectedDate.toLocaleDateString("pt-BR")}
+                Atividades em {formatDateTime(selectedDate)}
               </Typography>
 
               {activitiesOfDay.length === 0 ? (
@@ -283,40 +304,56 @@ export default function CalendarView({ onEdit }) {
                   Nenhuma atividade para este dia.
                 </Typography>
               ) : (
-                activitiesOfDay.map((a) => (
-                  <Paper key={a.id} sx={{ p: 2, mb: 2, border: "1px solid #ddd" }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        {a.name}
-                      </Typography>
-                      <Stack direction="row" spacing={1}>
-                        <IconButton size="small" onClick={() => onEdit?.(a)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small">
-                          <ShareIcon fontSize="small" />
-                        </IconButton>
+                activitiesOfDay.map((a) => {
+                  const code = inferStatus(a);
+                  const lbl = statusLabel(code);
+                  const running = isRunning(a);
+
+                  return (
+                    <Paper key={a.id} sx={{ p: 2, mb: 2, border: "1px solid #ddd" }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {a.name}
+                        </Typography>
+                        <Stack direction="row" spacing={1}>
+                          <IconButton size="small" onClick={() => onEdit?.(a)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small">
+                            <ShareIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
                       </Stack>
-                    </Stack>
 
-                    <Divider sx={{ my: 1 }} />
+                      <Divider sx={{ my: 1 }} />
 
-                    <Typography variant="body2"><strong>Local:</strong> {a.location || "—"}</Typography>
-                    <Typography variant="body2"><strong>Prioridade:</strong> {a.prioridade || "—"}</Typography>
-                    <Typography variant="body2"><strong>Status:</strong> {statusText(normalizeStatus(a.status))}</Typography>
-                    <Typography variant="body2"><strong>Equipe:</strong> {a.equipe || "—"}</Typography>
-                    <Typography variant="body2"><strong>Tipo:</strong> {a.tipoAtividade || "—"}</Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}><strong>Observações:</strong> {a.observacoes || "—"}</Typography>
+                      <Typography variant="body2"><strong>Local:</strong> {a.location || "—"}</Typography>
+                      <Typography variant="body2"><strong>Prioridade:</strong> {a.prioridade || "—"}</Typography>
+                      <Typography variant="body2"><strong>Status:</strong> {lbl}</Typography>
+                      <Typography variant="body2"><strong>Equipe:</strong> {a.equipe || "—"}</Typography>
+                      <Typography variant="body2"><strong>Tipo:</strong> {a.tipoAtividade || "—"}</Typography>
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        <strong>Observações:</strong> {a.observacoes || "—"}
+                      </Typography>
 
-                    <Stack direction="row" spacing={1} mt={2}>
-                      {normalizeStatus(a.status) ? (
-                        <Button variant="contained" size="small" onClick={() => onFinish(a.id)}>Concluir</Button>
-                      ) : (
-                        <Button variant="contained" size="small" onClick={() => onStart(a.id)}>Iniciar</Button>
-                      )}
-                    </Stack>
-                  </Paper>
-                ))
+                      <Stack direction="row" spacing={1} mt={2}>
+                        {running ? (
+                          <Button variant="contained" size="small" onClick={() => handleFinish(a.id)}>
+                            Concluir
+                          </Button>
+                        ) : code === "HISTORICO" ? (
+                          <Button variant="outlined" size="small" onClick={() => handleReopen(a.id)}>
+                            Reabrir
+                          </Button>
+                        ) : (
+                          <Button variant="contained" size="small" onClick={() => handleStart(a.id)}>
+                            Iniciar
+                          </Button>
+                        )}
+                      </Stack>
+                    </Paper>
+                  );
+                })
               )}
             </Box>
           )}
