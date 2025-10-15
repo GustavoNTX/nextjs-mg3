@@ -1,7 +1,7 @@
 // src/components/mobile/Header.jsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   AppBar,
@@ -24,6 +24,7 @@ import {
   Notifications as NotificationsIcon,
 } from "@mui/icons-material";
 import { useCondominoUIOptional } from "@/contexts/CondominoUIContext";
+import NotificationsModal from "@/components/shared/NotificationsModal";
 
 export default function HeaderMobile({
   title,
@@ -45,6 +46,11 @@ export default function HeaderMobile({
   const effectiveSetFiltro = ui?.setFiltro ?? setFiltro ?? (() => {});
   const selected = ui?.selected ?? selectedCondomino ?? null;
   const handleSair = ui?.sair ?? onSair ?? (() => {});
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const handleOpenNotifications = () => setNotificationsOpen(true);
+  const handleCloseNotifications = () => setNotificationsOpen(false);
 
   return (
     <Box>
@@ -91,7 +97,7 @@ export default function HeaderMobile({
           ) : (
             <></>
           )}
-          <IconButton>
+          <IconButton onClick={handleOpenNotifications}>
             <NotificationsIcon />
           </IconButton>
         </Toolbar>
@@ -132,6 +138,7 @@ export default function HeaderMobile({
           </FormControl>
         </Box>
       )}
+      <NotificationsModal open={notificationsOpen} onClose={handleCloseNotifications} />
     </Box>
   );
 }

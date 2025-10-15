@@ -1,7 +1,7 @@
 // src/components/desktop/Header.jsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   AppBar,
   Toolbar,
@@ -23,6 +23,7 @@ import {
   Notifications as NotificationsIcon,
 } from "@mui/icons-material";
 import { useCondominoUIOptional } from "@/contexts/CondominoUIContext";
+import NotificationsModal from "@/components/shared/NotificationsModal";
 
 export default function HeaderDesktop({
   title,
@@ -53,9 +54,15 @@ export default function HeaderDesktop({
   const selected = ui?.selected ?? selectedCondomino ?? null;
   const handleSair = ui?.sair ?? onSair ?? (() => {});
 
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const handleOpenNotifications = () => setNotificationsOpen(true);
+  const handleCloseNotifications = () => setNotificationsOpen(false);
+
   return (
-    <AppBar
-      position="fixed"
+    <>
+      <AppBar
+        position="fixed"
       sx={{
         left: `${currentSidebarWidth}px`,
         width: `calc(100% - ${currentSidebarWidth}px)`,
@@ -134,10 +141,12 @@ export default function HeaderDesktop({
             </FormControl>
           </>
         )}
-        <IconButton>
+        <IconButton onClick={handleOpenNotifications}>
           <NotificationsIcon />
         </IconButton>
       </Toolbar>
     </AppBar>
+      <NotificationsModal open={notificationsOpen} onClose={handleCloseNotifications} />
+    </>
   );
 }
