@@ -111,10 +111,8 @@ function toBudgetEnum(input?: string | null): BudgetStatus | undefined {
 /** ---------- GET ----------
  * Requer: ?empresaId & ?condominioId na query. Retorna 404 se escopo não bater.
  */
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+// app/api/atividades/[id]/route.ts (trecho GET)
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
@@ -122,61 +120,111 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const empresaId = searchParams.get("empresaId") ?? undefined;
     const condominioId = searchParams.get("condominioId") ?? undefined;
-
     ensureEmpresaMatch(authEmpresaId, empresaId);
     if (!condominioId) return json(400, { error: "condominioId é obrigatório" });
 
     const { id } = await ctx.params;
+
+    // 1) Valida escopo no MOLDE
     const item = await prisma.atividade.findFirst({
       where: { id, empresaId: authEmpresaId, condominioId },
       include: { condominio: { select: { id: true, name: true } } },
     });
     if (!item) return json(404, { error: "Atividade não encontrada" });
-    return NextResponse.json(item);
-  } catch (e) {
-    if ((e as any)?.status) return e as any;
+
+    // 2) Período opcional
+    const toDate = (v: string | null) => (v ? new Date(v) : null);
+    const from = toDate(searchParams.get("from"));
+    const to   = toDate(searchParams.get("to"));
+    const wantStats = searchParams.get("stats") === "1";
+
+    if (!wantStats || !from || !to) {
+      // comportamento antigo
+      return NextResponse.json(item);
+    }
+
+    // 3) Estatísticas por período (Postgres)
+    const [summary] = await prisma.$queryRaw<
+      Array<{ feitos: number; nao_feitos: number; total: number }>
+    >`
+      SELECT
+        SUM((h.status = 'FEITO')::int)  AS feitos,
+        SUM((h.status <> 'FEITO')::int) AS nao_feitos,
+        COUNT(*)                        AS total
+      FROM "AtividadeHistorico" h
+      WHERE h."atividadeId" = ${id}
+        AND h."dataReferencia" BETWEEN ${from}::date AND ${to}::date
+    `;
+
+    const byDay = await prisma.$queryRaw<
+      Array<{ dia: Date; feitos: number; nao_feitos: number; total: number }>
+    >`
+      SELECT
+        h."dataReferencia" AS dia,
+        COUNT(*) FILTER (WHERE h.status = 'FEITO')   AS feitos,
+        COUNT(*) FILTER (WHERE h.status <> 'FEITO')  AS nao_feitos,
+        COUNT(*)                                     AS total
+      FROM "AtividadeHistorico" h
+      WHERE h."atividadeId" = ${id}
+        AND h."dataReferencia" BETWEEN ${from}::date AND ${to}::date
+      GROUP BY h."dataReferencia"
+      ORDER BY h."dataReferencia"
+    `;
+
+    const historico = await prisma.atividadeHistorico.findMany({
+      where: { atividadeId: id, dataReferencia: { gte: from, lte: to } },
+      orderBy: { dataReferencia: "asc" },
+      select: { id: true, dataReferencia: true, status: true, completedAt: true, userId: true, observacoes: true },
+    });
+
+    return NextResponse.json({
+      atividade: item,
+      range: { from, to },
+      stats: summary ?? { feitos: 0, nao_feitos: 0, total: 0 },
+      byDay,
+      historico,
+    });
+  } catch (e: any) {
+    if (e?.status) return e;
     console.error("Atividade.GET error:", e);
     return json(500, { error: "Falha ao buscar a atividade." });
   }
 }
 
+
 /** ---------- PATCH ----------
  * Requer no body: empresaId, condominioId.
  * Atualiza somente campos presentes. Proteção multi-tenant via updateMany({ id, empresaId, condominioId }).
  */
-const patchSchema = z
-  .object({
-    empresaId: z.string().uuid(),
-    condominioId: z.string().uuid(),
+// PATCH permissivo: app/api/atividades/[id]/route.ts (trecho)
+const HIST_SET = new Set(["PENDENTE","FEITO","PULADO","ATRASADO"]);
 
-    // campos editáveis
-    status: z.union([
-      z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string()),
-      z.preprocess((v) => {
-        if (typeof v === "string") {
-          if (v.toLowerCase() === "true") return true;
-          if (v.toLowerCase() === "false") return false;
-        }
-        return v;
-      }, z.boolean()),
-    ]).optional(),
-    expectedDate: dateFlex().optional(),
-    startAt: dateFlex().optional(),
-    endAt: dateFlex().optional(),
-    completedAt: dateFlex().optional(),
+function toHistoricoStatus(input: unknown) {
+  if (typeof input !== "string") return undefined;
+  const s = input.trim().toUpperCase();
+  return HIST_SET.has(s) ? (s as "PENDENTE"|"FEITO"|"PULADO"|"ATRASADO") : undefined;
+}
 
-    prioridade: z.string().optional(),
-    budgetStatus: z.string().optional(),
-    appliedStandard: z.string().optional(),
-    observacoes: z.string().optional().nullable(),
-    tags: z.array(z.string()).optional(),
-  })
-  .strict();
+const patchSchema = z.object({
+  id: z.string().uuid().optional(),
+  empresaId: z.string().uuid(),
+  condominioId: z.string().uuid(),
 
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+  // campos do molde (todos opcionais)
+  expectedDate: dateFlex().optional(),
+  prioridade: z.string().optional(),
+  budgetStatus: z.string().optional(),
+  appliedStandard: z.string().optional(),
+  observacoes: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+
+  // campos de histórico (opcionais)
+  dataReferencia: z.preprocess((v) => (v ? new Date(v as any) : undefined), z.date().optional()),
+  status: z.union([z.boolean(), z.string()]).optional(),
+  completedAt: dateFlex().optional(),
+}).passthrough(); // <= deixa passar chaves desconhecidas (sem erro)
+
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
@@ -184,55 +232,68 @@ export async function PATCH(
     const { id } = await ctx.params;
 
     let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return json(400, { error: "JSON malformado" });
-    }
+    try { body = await req.json(); } catch { return json(400, { error: "JSON malformado" }); }
 
     const parsed = patchSchema.safeParse(body);
-    if (!parsed.success) {
-      return json(422, { error: "Validação falhou", issues: parsed.error.flatten() });
-    }
-    const b = parsed.data;
+    if (!parsed.success) return json(422, { error: "Validação falhou", issues: parsed.error.flatten() });
+    const b = parsed.data as any;
 
-    // empresaId do body deve bater com o do usuário
+    // escopo
     ensureEmpresaMatch(authEmpresaId, b.empresaId);
 
-    // monta data apenas com campos presentes + normalizações
+    // garante que a atividade existe no escopo
+    const molde = await prisma.atividade.findFirst({
+      where: { id, empresaId: authEmpresaId, condominioId: b.condominioId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!molde) return json(404, { error: "Atividade não encontrada ou fora do escopo." });
+
+    // ---------- caminho 1: atualizar HISTÓRICO se veio dataReferencia/status/completedAt ----------
+    const histStatus = toHistoricoStatus(b.status);
+    if (b.dataReferencia || histStatus || b.completedAt) {
+      const dataRef = (b.dataReferencia ? new Date(b.dataReferencia) : new Date()) as Date;
+
+      const hist = await prisma.atividadeHistorico.upsert({
+        where: { atividadeId_dataReferencia: { atividadeId: id, dataReferencia: dataRef } },
+        update: {
+          ...(histStatus ? { status: histStatus } : {}),
+          ...(b.completedAt !== undefined ? { completedAt: b.completedAt } : {}),
+          ...(b.observacoes !== undefined ? { observacoes: b.observacoes } : {}),
+        },
+        create: {
+          atividadeId: id,
+          dataReferencia: dataRef,
+          status: histStatus ?? "PENDENTE",
+          completedAt: b.completedAt ?? null,
+          observacoes: b.observacoes ?? null,
+          // se quiser atrelar ao usuário do header, preencha userId aqui
+        },
+        select: { id: true, dataReferencia: true, status: true, completedAt: true, observacoes: true },
+      });
+
+      return NextResponse.json({ ok: true, historico: hist });
+    }
+
+    // ---------- caminho 2: atualizar apenas o MOLDE (ignora campos desconhecidos/antigos) ----------
     const d: any = {};
 
-    if (b.status !== undefined) {
-      const norm = toStatusEnum(b.status);
-      if (!norm) return json(400, { error: "status inválido" });
-      d.status = norm;
-    }
     if ("expectedDate" in b) d.expectedDate = b.expectedDate;
-    if ("startAt" in b) d.startAt = b.startAt;
-    if ("endAt" in b) d.endAt = b.endAt;
-    if ("completedAt" in b) d.completedAt = b.completedAt;
 
     const prioridadeEnum = toPrioridadeEnum(b.prioridade ?? undefined);
-    if (b.prioridade !== undefined && !prioridadeEnum) {
-      return json(400, { error: "prioridade inválida" });
-    }
-    if (prioridadeEnum) d.prioridade = prioridadeEnum;
+    if (prioridadeEnum) d.prioridade = prioridadeEnum; // se inválida, IGNORA silenciosamente
 
     const budgetEnum = toBudgetEnum(b.budgetStatus ?? undefined);
-    if (b.budgetStatus !== undefined && !budgetEnum) {
-      return json(400, { error: "budgetStatus inválido" });
-    }
-    if (budgetEnum) d.budgetStatus = budgetEnum;
+    if (budgetEnum) d.budgetStatus = budgetEnum; // se inválido, IGNORA
 
     if (b.appliedStandard !== undefined) d.appliedStandard = b.appliedStandard;
     if (b.observacoes !== undefined) d.observacoes = b.observacoes;
-    if (b.tags !== undefined) d.tags = b.tags;
+    if (b.tags !== undefined) d.tags = Array.isArray(b.tags) ? b.tags : [];
 
-    if (Object.keys(d).length === 0) {
-      return json(400, { error: "Nenhum campo para atualizar." });
-    }
+    // nunca tente escrever campos que não existem no molde
+    // (status/startAt/endAt/completedAt do molde foram removidos do schema)
 
-    // proteção multi-tenant + amarração ao condomínio
+    if (Object.keys(d).length === 0) return json(400, { error: "Nenhum campo válido para atualizar." });
+
     const upd = await prisma.atividade.updateMany({
       where: { id, empresaId: authEmpresaId, condominioId: b.condominioId },
       data: d,
@@ -249,13 +310,11 @@ export async function PATCH(
   } catch (e: any) {
     if (e?.status) return e;
     console.error("Atividade.PATCH error:", e);
-    const msg =
-      e?.meta?.cause ||
-      e?.message ||
-      "Não foi possível atualizar a atividade.";
+    const msg = e?.meta?.cause || e?.message || "Não foi possível atualizar a atividade.";
     return json(500, { error: msg });
   }
 }
+
 
 /** ---------- DELETE ----------
  * Requer: ?empresaId & ?condominioId na query.

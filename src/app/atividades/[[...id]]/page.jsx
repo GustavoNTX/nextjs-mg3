@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+// 'useMemo' foi removido dos imports do React
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/components/Layout";
 import {
@@ -33,6 +34,7 @@ import {
   AtividadesProvider,
   useAtividades,
 } from "@/contexts/AtividadesContext";
+import SelectCondominio from "@/components/SelectCondominio";
 
 // Normaliza qualquer formato vindo do backend para boolean
 const normalizeStatus = (s) => {
@@ -54,23 +56,24 @@ const encodeStatus = (bool) =>
 
 function HeaderResumo() {
   const { selected } = useCondominoUI();
-  const { items = [], stats, loading } = useAtividades();
+  const {
+    // <<< CORREÇÃO: 'items' removido, não é mais usado aqui
+    stats,
+    loading,
+    totalAtividadesNosCondominios,
+  } = useAtividades();
 
-  const safe = useMemo(() => {
-    const list = Array.isArray(items) ? items : [];
-    const total = list.length;
-    const emAndamento = list.filter((a) => normalizeStatus(a?.status)).length;
-    const pendentes = total - emAndamento;
-    return { total, emAndamento, pendentes };
-  }, [items]);
+  console.log(useAtividades());
 
-  const total = Number.isFinite(stats?.total) ? stats.total : safe.total;
-  const funcionando = Number.isFinite(stats?.emAndamento)
-    ? stats.emAndamento
-    : safe.emAndamento;
-  const pendentes = Number.isFinite(stats?.pendentes)
-    ? stats.pendentes
-    : safe.pendentes;
+  // <<< CORREÇÃO: O bloco 'safe = useMemo(...)' foi removido
+  // Ele estava calculando os stats de forma errada.
+
+  const total = totalAtividadesNosCondominios;
+  
+  // <<< CORREÇÃO: Usar 'stats' diretamente, com fallback para 0.
+  // 'stats' já é calculado no AtividadesContext usando a lógica correta (inferStatus)
+  const funcionando = stats?.emAndamento ?? 0;
+  const pendentes = stats?.pendentes ?? 0;
 
   return (
     <Stack
@@ -225,6 +228,9 @@ function CronogramaInner() {
           Adicionar Atividade
         </Button>
       </Stack>
+      <Box sx={{ mb: 2 }}>
+        <SelectCondominio fullWidth />
+      </Box>
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={currentTab} onChange={handleTabChange}>
           <Tab label="LISTA" />

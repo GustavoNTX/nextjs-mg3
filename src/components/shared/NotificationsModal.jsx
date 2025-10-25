@@ -1,3 +1,4 @@
+// components/NotificationsModal.jsx
 "use client";
 
 import React, { useEffect, useMemo } from "react";
@@ -18,6 +19,7 @@ import { alpha } from "@mui/material/styles";
 import { useAtividadesOptional } from "@/contexts/AtividadesContext";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
 import { isTaskDueToday, getNextDueDate, sortTasksByNextDueDate } from "@/utils/dateLogic";
+import { inferStatus, statusLabel, statusColor } from "@/utils/atividadeStatus";
 
 const modalStyle = (theme) => ({
   position: "absolute",
@@ -113,31 +115,42 @@ export default function NotificationsModal({ open, onClose }) {
               </Stack>
               <List sx={{ bgcolor: theme.palette.background.default, borderRadius: 2, p: 1 }}>
                 {todayTasks.length ? (
-                  todayTasks.map((task) => (
-                    <ListItem
-                      key={task.id}
-                      sx={{
-                        backgroundColor: alpha(theme.palette.success.main, 0.18),
-                        borderRadius: 2,
-                        mb: 1,
-                        boxShadow: theme.shadows[1],
-                        "&:last-of-type": { mb: 0 },
-                      }}
-                    >
-                      <ListItemText
-                        primary={task.name}
-                        secondary={
-                          [
-                            `Frequência: ${task.frequency}`,
-                            task.condominioName ? `Condomínio: ${task.condominioName}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" • ")
-                        }
-                        primaryTypographyProps={{ fontWeight: 600 }}
-                      />
-                    </ListItem>
-                  ))
+                  todayTasks.map((task) => {
+                    const st = inferStatus(task.raw ?? task);
+                    const color = statusColor(st);
+                    return (
+                      <ListItem
+                        key={task.id}
+                        sx={{
+                          backgroundColor: alpha(theme.palette.success.main, 0.18),
+                          borderRadius: 2,
+                          mb: 1,
+                          boxShadow: theme.shadows[1],
+                          "&:last-of-type": { mb: 0 },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+                          <ListItemText
+                            primary={task.name}
+                            secondary={
+                              [
+                                `Frequência: ${task.frequency}`,
+                                task.condominioName ? `Condomínio: ${task.condominioName}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" • ")
+                            }
+                            primaryTypographyProps={{ fontWeight: 600 }}
+                          />
+                          <Chip
+                            size="small"
+                            label={statusLabel(st)}
+                            sx={{ ml: 2, bgcolor: alpha(color, 0.18), color }}
+                          />
+                        </Box>
+                      </ListItem>
+                    );
+                  })
                 ) : (
                   <ListItem>
                     <ListItemText primary="Nenhuma atividade prevista para hoje." />
@@ -162,32 +175,43 @@ export default function NotificationsModal({ open, onClose }) {
               </Stack>
               <List sx={{ p: 0 }}>
                 {upcomingTasks.length ? (
-                  upcomingTasks.map((task) => (
-                    <ListItem
-                      key={task.id}
-                      sx={{
-                        borderRadius: 2,
-                        border: `1px solid ${theme.palette.divider}`,
-                        mb: 1,
-                        "&:last-of-type": { mb: 0 },
-                      }}
-                    >
-                      <ListItemText
-                        primary={task.name}
-                        secondary={
-                          [
-                            task.nextDueDate
-                              ? `Próxima ocorrência: ${formatDate(task.nextDueDate)}`
-                              : "Sem próximas ocorrências definidas",
-                            `Frequência: ${task.frequency}`,
-                            task.condominioName ? `Condomínio: ${task.condominioName}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" • ")
-                        }
-                      />
-                    </ListItem>
-                  ))
+                  upcomingTasks.map((task) => {
+                    const st = inferStatus(task.raw ?? task);
+                    const color = statusColor(st);
+                    return (
+                      <ListItem
+                        key={task.id}
+                        sx={{
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          mb: 1,
+                          "&:last-of-type": { mb: 0 },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+                          <ListItemText
+                            primary={task.name}
+                            secondary={
+                              [
+                                task.nextDueDate
+                                  ? `Próxima ocorrência: ${formatDate(task.nextDueDate)}`
+                                  : "Sem próximas ocorrências definidas",
+                                `Frequência: ${task.frequency}`,
+                                task.condominioName ? `Condomínio: ${task.condominioName}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" • ")
+                            }
+                          />
+                          <Chip
+                            size="small"
+                            label={statusLabel(st)}
+                            sx={{ ml: 2, bgcolor: alpha(color, 0.12), color }}
+                          />
+                        </Box>
+                      </ListItem>
+                    );
+                  })
                 ) : (
                   <ListItem>
                     <ListItemText primary="Todas as atividades estão atualizadas." />

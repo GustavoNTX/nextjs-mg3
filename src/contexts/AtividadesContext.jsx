@@ -1,3 +1,4 @@
+// contexts/AtividadesContext.jsx
 "use client";
 
 import React, {
@@ -10,6 +11,7 @@ import React, {
   useEffect,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { TZ, startOfDayFortaleza, inferStatus } from "@/utils/atividadeStatus";
 
 const AtividadesContext = createContext(null);
 
@@ -23,6 +25,9 @@ const normalizeFilters = (value) => ({
   status: value?.status ?? null,
 });
 
+const todayISOFortaleza = () =>
+  startOfDayFortaleza().toISOString().slice(0, 10);
+
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
 
@@ -30,6 +35,9 @@ export function AtividadesProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState(null);
+  // <<< 1. ADICIONAR O NOVO ESTADO AQUI
+  const [totalAtividadesNosCondominios, setTotalAtividadesNosCondominios] =
+    useState(0);
 
   const [empresaItems, setEmpresaItems] = useState([]);
   const [empresaLoading, setEmpresaLoading] = useState(false);
@@ -40,15 +48,26 @@ export function AtividadesProvider({ children }) {
   const [condominioId, setCondominioId] = useState(null);
   const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
 
+  // --- NOTIFICAÇÕES ---
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState(null);
+
   // refs para leituras estáveis
   const empresaIdRef = useRef(empresaId);
   const condominioIdRef = useRef(condominioId);
   const filtersRef = useRef(filters);
   const empresaFiltersRef = useRef(normalizeFilters());
 
-  useEffect(() => { empresaIdRef.current = empresaId; }, [empresaId]);
-  useEffect(() => { condominioIdRef.current = condominioId; }, [condominioId]);
-  useEffect(() => { filtersRef.current = filters; }, [filters]);
+  useEffect(() => {
+    empresaIdRef.current = empresaId;
+  }, [empresaId]);
+  useEffect(() => {
+    condominioIdRef.current = condominioId;
+  }, [condominioId]);
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   // se o Auth povoar depois
   useEffect(() => {
@@ -100,10 +119,18 @@ export function AtividadesProvider({ children }) {
   };
 
   const load = useCallback(
-    async ({ empresaId: emp, condominioId: cId, filters: f, reset = true, take = 50, cursor } = {}) => {
+    async ({
+      empresaId: emp,
+      condominioId: cId,
+      filters: f,
+      reset = true,
+      take = 50,
+      cursor,
+    } = {}) => {
       setError(null);
       try {
-        const finalEmpresa = emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
+        const finalEmpresa =
+          emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
         const finalCondo = cId ?? condominioIdRef.current;
         const finalFilters = f ?? filtersRef.current;
 
@@ -112,7 +139,10 @@ export function AtividadesProvider({ children }) {
           return;
         }
 
-        const qs = buildQuery(finalEmpresa, finalCondo, finalFilters, { take, cursor });
+        const qs = buildQuery(finalEmpresa, finalCondo, finalFilters, {
+          take,
+          cursor,
+        });
         if (!qs) {
           setError("Parâmetros inválidos.");
           return;
@@ -122,7 +152,10 @@ export function AtividadesProvider({ children }) {
           setLoading(true);
           setItems([]);
           setNextCursor(null);
-          if (finalCondo !== condominioIdRef.current) setCondominioId(finalCondo);
+          // <<< 2. RESETAR O TOTAL AQUI TAMBÉM
+          setTotalAtividadesNosCondominios(0); 
+          if (finalCondo !== condominioIdRef.current)
+            setCondominioId(finalCondo);
           if (finalEmpresa !== empresaIdRef.current) setEmpresaId(finalEmpresa);
           setFilters((old) => ({
             q: finalFilters?.q ?? "",
@@ -131,11 +164,22 @@ export function AtividadesProvider({ children }) {
           }));
         }
 
-        const res = await fetchWithAuth(`/api/atividades?${qs}`, { cache: "no-store" });
+        const res = await fetchWithAuth(`/api/atividades?${qs}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("Falha ao carregar atividades");
         const json = await res.json();
         setItems((old) => (reset ? json.items : [...old, ...json.items]));
         setNextCursor(json.nextCursor ?? null);
+
+        // <<< 2. ATUALIZAR O ESTADO COM O VALOR DA API (APENAS NO RESET)
+        if (reset) {
+          setTotalAtividadesNosCondominios(
+            Number.isFinite(json.totalAtividadesNosCondominios)
+              ? json.totalAtividadesNosCondominios
+              : json.total ?? 0 // Fallback para json.total ou 0 se o campo específico não vier
+          );
+        }
       } catch (e) {
         setError(e?.message || "Erro ao carregar atividades");
       } finally {
@@ -151,16 +195,25 @@ export function AtividadesProvider({ children }) {
   }, [nextCursor, load]);
 
   const loadEmpresa = useCallback(
-    async ({ empresaId: emp, filters: f, reset = true, take = 100, cursor } = {}) => {
+    async ({
+      empresaId: emp,
+      filters: f,
+      reset = true,
+      take = 100,
+      cursor,
+    } = {}) => {
       setEmpresaError(null);
       try {
-        const finalEmpresa = emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
+        const finalEmpresa =
+          emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
         if (!finalEmpresa) {
           setEmpresaError("empresaId ausente.");
           return;
         }
 
-        const normalizedFilters = f ? normalizeFilters(f) : { ...empresaFiltersRef.current };
+        const normalizedFilters = f
+          ? normalizeFilters(f)
+          : { ...empresaFiltersRef.current };
 
         if (reset) {
           empresaFiltersRef.current = normalizedFilters;
@@ -169,16 +222,23 @@ export function AtividadesProvider({ children }) {
 
         setEmpresaLoading(true);
 
-        const qs = buildQuery(finalEmpresa, undefined, normalizedFilters, { take, cursor });
+        const qs = buildQuery(finalEmpresa, undefined, normalizedFilters, {
+          take,
+          cursor,
+        });
         if (!qs) {
           setEmpresaError("Parâmetros inválidos.");
           return;
         }
 
-        const res = await fetchWithAuth(`/api/atividades?${qs}`, { cache: "no-store" });
+        const res = await fetchWithAuth(`/api/atividades?${qs}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("Falha ao carregar atividades da empresa");
         const json = await res.json();
-        setEmpresaItems((old) => (reset ? json.items : [...old, ...json.items]));
+        setEmpresaItems((old) =>
+          reset ? json.items : [...old, ...json.items]
+        );
         setEmpresaNextCursor(json.nextCursor ?? null);
       } catch (e) {
         setEmpresaError(e?.message || "Erro ao carregar atividades da empresa");
@@ -243,10 +303,25 @@ export function AtividadesProvider({ children }) {
       setEmpresaItems((old) => {
         if (!old?.length) return [created];
         const exists = old.some((item) => item.id === created.id);
-        if (exists) return old.map((item) => (item.id === created.id ? created : item));
+        if (exists)
+          return old.map((item) => (item.id === created.id ? created : item));
         return [created, ...old];
       });
 
+      // <<< 2. ATUALIZAR TOTAL AO CRIAR (OPCIONAL, MAS RECOMENDADO)
+      // Se a atividade criada bate com os filtros, incrementa o total
+      const f = filtersRef.current;
+      const okCondo = created.condominioId === condominioIdRef.current;
+      const okStatus = !f?.status || created.status === f.status;
+      const okPri = !f?.prioridade || created.prioridade === f.prioridade;
+      if (okCondo && okStatus && okPri) {
+         setTotalAtividadesNosCondominios((t) => t + 1);
+      }
+
+      // refresh notificações
+      try {
+        await loadNotifications();
+      } catch {}
       return created;
     },
     [fetchWithAuth, resolveEmpresaId]
@@ -285,6 +360,11 @@ export function AtividadesProvider({ children }) {
       const updated = await res.json();
       setItems((old) => old.map((it) => (it.id === id ? updated : it)));
       setEmpresaItems((old) => old.map((it) => (it.id === id ? updated : it)));
+
+      // refresh notificações
+      try {
+        await loadNotifications();
+      } catch {}
       return updated;
     },
     [fetchWithAuth, items, resolveEmpresaId]
@@ -302,7 +382,10 @@ export function AtividadesProvider({ children }) {
       if (!emp) throw new Error("empresaId ausente.");
       if (!condo) throw new Error("condominioId ausente.");
 
-      const qs = new URLSearchParams({ empresaId: emp, condominioId: String(condo) }).toString();
+      const qs = new URLSearchParams({
+        empresaId: emp,
+        condominioId: String(condo),
+      }).toString();
 
       const res = await fetchWithAuth(`/api/atividades/${id}?${qs}`, {
         method: "DELETE",
@@ -313,16 +396,147 @@ export function AtividadesProvider({ children }) {
       }
       setItems((old) => old.filter((it) => it.id !== id));
       setEmpresaItems((old) => old.filter((it) => it.id !== id));
+
+      // <<< 2. ATUALIZAR TOTAL AO DELETAR (OPCIONAL, MAS RECOMENDADO)
+      // Apenas decrementa se o item removido estava na lista (items)
+      if (existing) {
+         setTotalAtividadesNosCondominios((t) => (t > 0 ? t - 1 : 0));
+      }
+
+      // refresh notificações
+      try {
+        await loadNotifications();
+      } catch {}
     },
     [fetchWithAuth, items, resolveEmpresaId]
   );
 
+  // --- NOTIFICAÇÕES: dismiss/snooze local por usuário/empresa/condo ---
+  const scopeKey = useCallback(() => {
+    return `${user?.id || "anon"}:${empresaIdRef.current || "-"}:${
+      condominioIdRef.current || "-"
+    }`;
+  }, [user]);
+  const readDismissMap = () => {
+    try {
+      return JSON.parse(localStorage.getItem("notif.dismiss") || "{}");
+    } catch {
+      return {};
+    }
+  };
+  const writeDismissMap = (map) => {
+    try {
+      localStorage.setItem("notif.dismiss", JSON.stringify(map));
+    } catch {}
+  };
+  const dismissNotification = useCallback(
+    (key, untilISO) => {
+      const map = readDismissMap();
+      const scope = scopeKey();
+      const scoped = map[scope] || {};
+      scoped[key] = untilISO || todayISOFortaleza(); // padrão: hoje
+      map[scope] = scoped;
+      writeDismissMap(map);
+      setNotifications((old) =>
+        old.filter((n) => `${n.atividadeId}|${n.when}|${n.dueDateISO}` !== key)
+      );
+    },
+    [scopeKey]
+  );
+
+  const loadNotifications = useCallback(
+    async ({ leadDays = 1 } = {}) => {
+      setNotifError(null);
+      setNotifLoading(true);
+      try {
+        const emp = empresaIdRef.current ?? (await resolveEmpresaId());
+        const params = new URLSearchParams({
+          empresaId: emp,
+          leadDays: String(Number(leadDays) || 0),
+        });
+        const res = await fetchWithAuth(
+          `/api/atividades/notifications?${params.toString()}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("Falha ao carregar notificações");
+        const json = await res.json();
+        const arr = Array.isArray(json) ? json : json.items ?? [];
+
+        // aplica dismiss local por usuário/empresa/condomínio (escopo completo)
+        const scope = `${user?.id || "anon"}:${emp}:${
+          condominioIdRef.current || "-"
+        }`;
+        const map = readDismissMap();
+        const dismissed = map[scope] || {};
+        const todayISO = todayISOFortaleza();
+
+        const filtered = arr.filter((n) => {
+          const k = `${n.atividadeId}|${n.when}|${n.dueDateISO}`;
+          const until = dismissed[k];
+          return !until || String(until) < todayISO;
+        });
+
+        setNotifications(filtered);
+      } catch (e) {
+        setNotifications([]);
+        setNotifError(e?.message || "Erro ao carregar notificações");
+      } finally {
+        setNotifLoading(false);
+      }
+    },
+    [fetchWithAuth, resolveEmpresaId, user]
+  );
+
+  // recarregar ao trocar condo/empresa
+  useEffect(() => {
+    if (empresaId && condominioId) loadNotifications();
+  }, [empresaId, condominioId, loadNotifications]);
+
+  // virada do dia (TZ Fortaleza)
+  useEffect(() => {
+    let tm;
+    const arm = () => {
+      const now = new Date(
+        new Date().toLocaleString("en-US", { timeZone: TZ })
+      );
+      const next = new Date(now);
+      next.setHours(24, 0, 0, 0);
+      const ms = Math.max(next - now + 500, 60_000);
+      tm = setTimeout(async () => {
+        await loadNotifications();
+        arm();
+      }, ms);
+    };
+    arm();
+    return () => {
+      if (tm) clearTimeout(tm);
+    };
+  }, [loadNotifications]);
+
+  // stats centralizados via inferStatus
   const stats = useMemo(() => {
-    const total = items.length;
-    const emAndamento = items.filter((i) => i.status === "EM_ANDAMENTO" || i.status === true).length;
-    const pendentes = items.filter((i) => i.status === "PENDENTE" || i.status === false).length;
-    return { total, emAndamento, pendentes };
+    const out = {
+      PROXIMAS: 0,
+      EM_ANDAMENTO: 0,
+      PENDENTE: 0,
+      HISTORICO: 0,
+      total: items.length, // Este 'total' é apenas dos items carregados (paginados)
+    };
+    for (const it of items) out[inferStatus(it)]++;
+    // compat
+    return { ...out, emAndamento: out.EM_ANDAMENTO, pendentes: out.PENDENTE };
   }, [items]);
+
+  const notifStats = useMemo(() => {
+    const s = { pre: 0, due: 0, overdue: 0, total: 0 };
+    for (const n of notifications) {
+      if (n.when === "pre") s.pre++;
+      else if (n.when === "due") s.due++;
+      else if (n.when === "overdue") s.overdue++;
+    }
+    s.total = notifications.length;
+    return s;
+  }, [notifications]);
 
   const value = useMemo(
     () => ({
@@ -338,13 +552,29 @@ export function AtividadesProvider({ children }) {
       condominioId,
       filters,
       stats,
+      // <<< 3. EXPOR O NOVO ESTADO AQUI
+      totalAtividadesNosCondominios,
+
+      // listagem
       load,
       loadMore,
       loadEmpresa,
       loadEmpresaMore,
+
+      // CRUD
       createAtividade,
       updateAtividade,
       deleteAtividade,
+
+      // notificações
+      notifications,
+      notifLoading,
+      notifError,
+      notifStats,
+      loadNotifications,
+      dismissNotification,
+
+      // setters
       setFilters,
       setCondominioId,
       setEmpresaId,
@@ -362,6 +592,8 @@ export function AtividadesProvider({ children }) {
       condominioId,
       filters,
       stats,
+      // <<< 3. ADICIONAR NO ARRAY DE DEPENDÊNCIAS
+      totalAtividadesNosCondominios,
       load,
       loadMore,
       loadEmpresa,
@@ -369,15 +601,28 @@ export function AtividadesProvider({ children }) {
       createAtividade,
       updateAtividade,
       deleteAtividade,
+      notifications,
+      notifLoading,
+      notifError,
+      notifStats,
+      loadNotifications,
+      dismissNotification,
     ]
   );
 
-  return <AtividadesContext.Provider value={value}>{children}</AtividadesContext.Provider>;
+  return (
+    <AtividadesContext.Provider value={value}>
+      {children}
+    </AtividadesContext.Provider>
+  );
 }
 
 export const useAtividades = () => {
   const ctx = useContext(AtividadesContext);
-  if (!ctx) throw new Error("useAtividades deve ser usado dentro de AtividadesProvider");
+  if (!ctx)
+    throw new Error(
+      "useAtividades deve ser usado dentro de AtividadesProvider"
+    );
   return ctx;
 };
 
