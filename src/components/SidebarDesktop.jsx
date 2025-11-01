@@ -18,6 +18,7 @@ import { ExpandLess, ExpandMore } from "@mui/icons-material"; // Ícones para o 
 import { menuItems } from "@/config/menuItems";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const drawerWidth = 60;
 const expandedDrawerWidth = 240;
@@ -54,7 +55,7 @@ export default function SidebarDesktop({
         {menuItems.map((item) => (
           <React.Fragment key={item.text}>
             <ListItem disablePadding>
-              <ListItemButton
+              {/* <ListItemButton
                 // O clique agora abre o dropdown se houver sub-itens
                 onClick={async () => {
                   if (item.action === "logout") {
@@ -68,25 +69,68 @@ export default function SidebarDesktop({
                 sx={{
                   "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 },
                 }}
-              >
-                <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.text}
-                  sx={{
-                    whiteSpace: "nowrap",
-                    pl: 2,
-                    transition: theme.transitions.create("opacity", {
-                      duration: theme.transitions.duration.shorter,
-                    }),
+              > */}
+
+              {/* 1) Logout */}
+              {item.action === "logout" && (
+                <ListItemButton
+                  onClick={async () => {
+                    await logout();
+                    setOpenMenu(null);
+                    router.push("/login");
                   }}
-                />
-                {/* Mostra o ícone de seta se houver sub-itens e a sidebar estiver expandida */}
-                {item.children &&
-                  expanded &&
-                  (openMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
-              </ListItemButton>
+                  sx={{
+                    "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    sx={{ whiteSpace: "nowrap", pl: 2 }}
+                  />
+                </ListItemButton>
+              )}
+
+              {/* 2) Item com link direto */}
+              {item.path && !item.children && !item.action && (
+                <ListItemButton
+                  component={Link}
+                  href={item.path}
+                  sx={{
+                    "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    sx={{ whiteSpace: "nowrap", pl: 2 }}
+                  />
+                </ListItemButton>
+              )}
+
+              {/* 3) Item com submenu (não navega, só abre/fecha) */}
+              {item.children && (
+                <ListItemButton
+                  onClick={() => handleClick(item.text)}
+                  sx={{
+                    "& .MuiListItemText-root": { opacity: expanded ? 1 : 0 },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 0, justifyContent: "center" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    sx={{ whiteSpace: "nowrap", pl: 2 }}
+                  />
+                  {expanded &&
+                    (openMenu === item.text ? <ExpandLess /> : <ExpandMore />)}
+                </ListItemButton>
+              )}
             </ListItem>
 
             {/* Submenu com Collapse (Dropdown) */}
@@ -98,7 +142,12 @@ export default function SidebarDesktop({
               >
                 <List component="div" disablePadding>
                   {item.children.map((child) => (
-                    <ListItemButton key={child.text} sx={{ pl: 4 }}>
+                    <ListItemButton
+                      key={child.text}
+                      component={Link}
+                      href={child.path}
+                      sx={{ pl: 4 }}
+                    >
                       {" "}
                       {/* Adiciona um padding para indentar */}
                       <ListItemIcon>{child.icon}</ListItemIcon>

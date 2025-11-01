@@ -12,6 +12,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log('AUTH STATE CHECK:', { loading, user });
     if (!loading) {
       if (user) {
         router.push('/selecione-o-condominio');

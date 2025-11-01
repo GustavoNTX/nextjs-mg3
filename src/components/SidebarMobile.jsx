@@ -36,6 +36,7 @@ export default function SidebarMobile({ mobileOpen, handleDrawerToggle }) {
     } else {
       // Adicione a lógica de navegação aqui, ex: router.push(item.path)
       console.log(`Navegando para: ${item.path}`);
+      if (item.path) router.push(item.path);
       handleDrawerToggle();
     }
   };
@@ -67,7 +68,10 @@ export default function SidebarMobile({ mobileOpen, handleDrawerToggle }) {
                     <ListItemButton
                       key={child.text}
                       sx={{ pl: 4 }}
-                      onClick={handleDrawerToggle}
+                      onClick={() => {
+                        if (child.path) router.push(child.path);
+                        handleDrawerToggle();
+                      }}
                     >
                       <ListItemIcon>{child.icon}</ListItemIcon>
                       <ListItemText primary={child.text} />
