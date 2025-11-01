@@ -17,9 +17,6 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useAtividadesOptional } from "@/contexts/AtividadesContext";
-import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
-import { isTaskDueToday, getNextDueDate, sortTasksByNextDueDate } from "@/utils/dateLogic";
-import { inferStatus, statusLabel, statusColor } from "@/utils/atividadeStatus";
 
 const modalStyle = (theme) => ({
   position: "absolute",
@@ -41,119 +38,175 @@ const modalStyle = (theme) => ({
 });
 
 const formatDate = (date) =>
-  date?.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  date?.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 
 export default function NotificationsModal({ open, onClose }) {
   const theme = useTheme();
   const atividades = useAtividadesOptional();
-  const empresaItems = atividades?.empresaItems ?? [];
-  const empresaLoading = atividades?.empresaLoading ?? false;
-  const empresaError = atividades?.empresaError ?? null;
-  const loadEmpresa = atividades?.loadEmpresa;
+
+  const notifications = atividades?.notifications ?? [];
+  const notifLoading = atividades?.notifLoading ?? false;
+  const notifError = atividades?.notifError ?? null;
+  const loadNotifications = atividades?.loadNotifications;
 
   const today = useMemo(() => new Date(), [open]);
 
   useEffect(() => {
-    if (!open || !loadEmpresa) return;
-    loadEmpresa({ reset: true });
-  }, [open, loadEmpresa]);
+    if (!open || !loadNotifications) return;
+    // só hoje
+    loadNotifications({ leadDays: 0 });
+  }, [open, loadNotifications]);
 
-  const tasks = useMemo(() => {
-    const adapted = adaptAtividadesToTasks(empresaItems);
-    return sortTasksByNextDueDate(adapted, today);
-  }, [empresaItems, today]);
+  // YYYY-MM-DD no fuso de Fortaleza
+  const todayISO = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
+  )
+    .toISOString()
+    .slice(0, 10);
 
-  const todayTasks = useMemo(
-    () => tasks.filter((task) => isTaskDueToday(task, today)),
-    [tasks, today]
-  );
-
-  const upcomingTasks = useMemo(
+  // Notificações de HOJE (when === "due")
+  const dueToday = useMemo(
     () =>
-      tasks
-        .filter((task) => !isTaskDueToday(task, today))
-        .map((task) => ({
-          ...task,
-          nextDueDate: getNextDueDate(task, today),
-        })),
-    [tasks, today]
+      notifications.filter(
+        (n) => n.when === "due" && n.dueDateISO === todayISO
+      ),
+    [notifications, todayISO]
   );
+
+  const feitasHoje = useMemo(
+    () =>
+      dueToday.filter(
+        (n) => n.isDoneOnDueDate || n.statusOnDueDate === "FEITO"
+      ),
+    [dueToday]
+  );
+
+  const naoFeitasHoje = useMemo(
+    () =>
+      dueToday.filter(
+        (n) => !(n.isDoneOnDueDate || n.statusOnDueDate === "FEITO")
+      ),
+    [dueToday]
+  );
+
+  const renderItem = (n, done) => {
+    const key = `${n.atividadeId ?? n.title}-${n.dueDateISO}`;
+    const primary = n.title || n.nameOnly || "Atividade";
+    const secondary =
+      n.details ||
+      (done ? "Concluída hoje" : "Pendente para hoje");
+
+    return (
+      <ListItem
+        key={key}
+        sx={{
+          backgroundColor: done
+            ? alpha(theme.palette.success.main, 0.18)
+            : alpha(theme.palette.warning.main, 0.12),
+          borderRadius: 2,
+          mb: 1,
+          boxShadow: theme.shadows[1],
+          "&:last-of-type": { mb: 0 },
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+          <ListItemText
+            primary={primary}
+            secondary={[
+              secondary,
+              n.condominioName ? `Condomínio: ${n.condominioName}` : null,
+            ]
+              .filter(Boolean)
+              .join(" • ")}
+            primaryTypographyProps={{ fontWeight: 600 }}
+          />
+          <Chip
+            size="small"
+            label={done ? "Feito" : "Pendente"}
+            sx={{
+              ml: 2,
+              bgcolor: alpha(
+                done ? theme.palette.success.main : theme.palette.warning.main,
+                0.18
+              ),
+              color: done
+                ? theme.palette.success.main
+                : theme.palette.warning.main,
+            }}
+          />
+        </Box>
+      </ListItem>
+    );
+  };
 
   return (
-    <Modal open={open} onClose={onClose} aria-labelledby="notifications-modal-title">
+    <Modal
+      open={open}
+      onClose={onClose}
+      aria-labelledby="notifications-modal-title"
+    >
       <Box sx={modalStyle(theme)}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography id="notifications-modal-title" variant="h6" component="h2">
-            Atividades pendentes
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Typography
+            id="notifications-modal-title"
+            variant="h6"
+            component="h2"
+          >
+            Atividades de hoje
           </Typography>
           <Chip label={formatDate(today)} color="default" variant="outlined" />
         </Stack>
 
-        {empresaLoading ? (
+        {notifLoading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress size={32} />
           </Box>
         ) : (
           <>
-            {empresaError && (
+            {notifError && (
               <Typography color="error" variant="body2" sx={{ mb: 2 }}>
-                {empresaError}
+                {notifError}
               </Typography>
             )}
 
+            {/* Feitas hoje */}
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 1 }}
+              >
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Para hoje
+                  Feitas hoje
                 </Typography>
                 <Chip
                   size="small"
-                  label={todayTasks.length}
-                  color={todayTasks.length ? "success" : "default"}
-                  variant={todayTasks.length ? "filled" : "outlined"}
+                  label={feitasHoje.length}
+                  color={feitasHoje.length ? "success" : "default"}
+                  variant={feitasHoje.length ? "filled" : "outlined"}
                 />
               </Stack>
-              <List sx={{ bgcolor: theme.palette.background.default, borderRadius: 2, p: 1 }}>
-                {todayTasks.length ? (
-                  todayTasks.map((task) => {
-                    const st = inferStatus(task.raw ?? task);
-                    const color = statusColor(st);
-                    return (
-                      <ListItem
-                        key={task.id}
-                        sx={{
-                          backgroundColor: alpha(theme.palette.success.main, 0.18),
-                          borderRadius: 2,
-                          mb: 1,
-                          boxShadow: theme.shadows[1],
-                          "&:last-of-type": { mb: 0 },
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
-                          <ListItemText
-                            primary={task.name}
-                            secondary={
-                              [
-                                `Frequência: ${task.frequency}`,
-                                task.condominioName ? `Condomínio: ${task.condominioName}` : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" • ")
-                            }
-                            primaryTypographyProps={{ fontWeight: 600 }}
-                          />
-                          <Chip
-                            size="small"
-                            label={statusLabel(st)}
-                            sx={{ ml: 2, bgcolor: alpha(color, 0.18), color }}
-                          />
-                        </Box>
-                      </ListItem>
-                    );
-                  })
+              <List
+                sx={{
+                  bgcolor: theme.palette.background.default,
+                  borderRadius: 2,
+                  p: 1,
+                }}
+              >
+                {feitasHoje.length ? (
+                  feitasHoje.map((n) => renderItem(n, true))
                 ) : (
                   <ListItem>
-                    <ListItemText primary="Nenhuma atividade prevista para hoje." />
+                    <ListItemText primary="Nada concluído ainda hoje." />
                   </ListItem>
                 )}
               </List>
@@ -161,60 +214,36 @@ export default function NotificationsModal({ open, onClose }) {
 
             <Divider />
 
+            {/* Não feitas hoje */}
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 1 }}
+              >
                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Próximas atividades
+                  Não feitas hoje
                 </Typography>
                 <Chip
                   size="small"
-                  label={upcomingTasks.length}
-                  color={upcomingTasks.length ? "primary" : "default"}
-                  variant={upcomingTasks.length ? "filled" : "outlined"}
+                  label={naoFeitasHoje.length}
+                  color={naoFeitasHoje.length ? "warning" : "default"}
+                  variant={naoFeitasHoje.length ? "filled" : "outlined"}
                 />
               </Stack>
-              <List sx={{ p: 0 }}>
-                {upcomingTasks.length ? (
-                  upcomingTasks.map((task) => {
-                    const st = inferStatus(task.raw ?? task);
-                    const color = statusColor(st);
-                    return (
-                      <ListItem
-                        key={task.id}
-                        sx={{
-                          borderRadius: 2,
-                          border: `1px solid ${theme.palette.divider}`,
-                          mb: 1,
-                          "&:last-of-type": { mb: 0 },
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
-                          <ListItemText
-                            primary={task.name}
-                            secondary={
-                              [
-                                task.nextDueDate
-                                  ? `Próxima ocorrência: ${formatDate(task.nextDueDate)}`
-                                  : "Sem próximas ocorrências definidas",
-                                `Frequência: ${task.frequency}`,
-                                task.condominioName ? `Condomínio: ${task.condominioName}` : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" • ")
-                            }
-                          />
-                          <Chip
-                            size="small"
-                            label={statusLabel(st)}
-                            sx={{ ml: 2, bgcolor: alpha(color, 0.12), color }}
-                          />
-                        </Box>
-                      </ListItem>
-                    );
-                  })
+              <List
+                sx={{
+                  bgcolor: theme.palette.background.default,
+                  borderRadius: 2,
+                  p: 1,
+                }}
+              >
+                {naoFeitasHoje.length ? (
+                  naoFeitasHoje.map((n) => renderItem(n, false))
                 ) : (
                   <ListItem>
-                    <ListItemText primary="Todas as atividades estão atualizadas." />
+                    <ListItemText primary="Sem pendências para hoje." />
                   </ListItem>
                 )}
               </List>

@@ -309,6 +309,7 @@ export async function GET(req: NextRequest) {
 /** -------- POST (create) -------- */
 const createSchema = z
   .object({
+    empresaId: z.string().uuid().optional(),
     condominioId: z.string().uuid(),
     name: z.string().min(1),
     type: z.string().min(1),
@@ -365,6 +366,7 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data;
 
+     ensureEmpresaOptionalMatch(authEmpresaId, data.empresaId);
     await assertCondominioDaEmpresa(data.condominioId, authEmpresaId);
 
     const prioridadeEnum = toPrioridadeEnum(data.prioridade ?? undefined);

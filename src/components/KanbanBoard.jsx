@@ -30,6 +30,7 @@ import HomeRepairServiceIcon from "@mui/icons-material/HomeRepairService";
 import { styled } from "@mui/material/styles";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useAtividades } from "@/contexts/AtividadesContext";
+import ResumoAtividades from "@/components/ResumoAtividades";
 
 // helpers centralizados
 import {

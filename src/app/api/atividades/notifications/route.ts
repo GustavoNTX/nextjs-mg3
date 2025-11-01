@@ -21,7 +21,10 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
 
   const userId = h.get("x-user-id") ?? undefined;
   if (userId) {
-    const u = await prisma.user.findUnique({ where: { id: userId }, select: { empresaId: true } });
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { empresaId: true },
+    });
     if (u?.empresaId) return u.empresaId;
   }
 
@@ -38,34 +41,51 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
         const email = payload?.email as string | undefined;
 
         if (sub) {
-          const u = await prisma.user.findUnique({ where: { id: sub }, select: { empresaId: true } });
+          const u = await prisma.user.findUnique({
+            where: { id: sub },
+            select: { empresaId: true },
+          });
           if (u?.empresaId) return u.empresaId;
         }
         if (email) {
-          const u = await prisma.user.findUnique({ where: { email }, select: { empresaId: true } });
+          const u = await prisma.user.findUnique({
+            where: { email },
+            select: { empresaId: true },
+          });
           if (u?.empresaId) return u.empresaId;
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
 
-function ensureEmpresaMatch(authEmpresaId: string, inputEmpresaId?: string | null) {
+function ensureEmpresaMatch(
+  authEmpresaId: string,
+  inputEmpresaId?: string | null
+) {
   if (!inputEmpresaId) throw json(400, { error: "empresaId é obrigatório" });
-  if (authEmpresaId !== inputEmpresaId) throw json(403, { error: "empresaId não corresponde ao usuário" });
+  if (authEmpresaId !== inputEmpresaId)
+    throw json(403, { error: "empresaId não corresponde ao usuário" });
 }
 
 /* ===== Data (TZ Fortaleza) ===== */
 function startOfDayFortaleza(d: Date | string = new Date()) {
-  const x = new Date(new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" }));
+  const x = new Date(
+    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" })
+  );
   x.setHours(0, 0, 0, 0);
   return x;
 }
 
 /* ===== Normalização de frequência ===== */
 function normalizeFreq(val?: string | null) {
-  const s = (val || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const s = (val || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   if (!s) return "Não se repete";
   if (/(todo|toda).*(dia)/.test(s) || /diar/.test(s)) return "Diária";
   if (/seman/.test(s)) return "Semanal";
@@ -74,7 +94,8 @@ function normalizeFreq(val?: string | null) {
   if (/trimestral|trimestre/.test(s)) return "Trimestral";
   if (/semestral/.test(s)) return "Semestral";
   if (/anual|ano/.test(s)) return "Anual";
-  if (/nao se repete|não se repete|unica|única|uma vez|pontual/.test(s)) return "Não se repete";
+  if (/nao se repete|não se repete|unica|única|uma vez|pontual/.test(s))
+    return "Não se repete";
   return s; // mantém como veio
 }
 
@@ -88,9 +109,9 @@ type Notification = {
   atividadeId: string | number | undefined;
   when: When;
   dueDateISO: string; // YYYY-MM-DD
-  title: string;      // "Nome · Condomínio"
-  nameOnly: string;   // só o nome da atividade
-  details?: string;   // "Vence hoje" | "Vence em X dia(s)" | "Atrasada"
+  title: string; // "Nome · Condomínio"
+  nameOnly: string; // só o nome da atividade
+  details?: string; // "Vence hoje" | "Vence em X dia(s)" | "Atrasada"
   condominioId?: string | null;
   condominioName?: string | null;
 };
@@ -107,7 +128,10 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const empresaId = searchParams.get("empresaId");
-    const leadDays = Math.max(0, Number(searchParams.get("leadDays") ?? 1) || 0);
+    const leadDays = Math.max(
+      0,
+      Number(searchParams.get("leadDays") ?? 1) || 0
+    );
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
 
@@ -119,7 +143,11 @@ export async function GET(req: NextRequest) {
 
     const today = startOfDayFortaleza();
     const toYMD = (d: Date) => d.toISOString().slice(0, 10);
-    const sod = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+    const sod = (d: Date) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    };
 
     const tasks = adaptAtividadesToTasks(items);
 
@@ -141,14 +169,13 @@ export async function GET(req: NextRequest) {
       const freqNorm = normalizeFreq(rawFreq);
       const recurring = isRecurring(freqNorm);
 
-      const anchor: Date | null =
-        (t as any).startDate
-          ? new Date((t as any).startDate)
-          : t.raw?.startAt
-          ? new Date(t.raw.startAt)
-          : t.raw?.expectedDate
-          ? new Date(t.raw.expectedDate)
-          : null;
+      const anchor: Date | null = (t as any).startDate
+        ? new Date((t as any).startDate)
+        : t.raw?.startAt
+        ? new Date(t.raw.startAt)
+        : t.raw?.expectedDate
+        ? new Date(t.raw.expectedDate)
+        : null;
 
       // 1) due hoje?
       if (isTaskDueToday(t, today)) {
@@ -168,7 +195,9 @@ export async function GET(req: NextRequest) {
       // 2) próxima ocorrência calculada normalmente
       const next = getNextDueDate(t, today);
       if (next) {
-        const diffDays = Math.floor((sod(next).getTime() - today.getTime()) / 86400000);
+        const diffDays = Math.floor(
+          (sod(next).getTime() - today.getTime()) / 86400000
+        );
         if (diffDays >= 0 && diffDays <= leadDays) {
           out.push({
             atividadeId: t.id,
@@ -176,7 +205,8 @@ export async function GET(req: NextRequest) {
             dueDateISO: toYMD(next),
             title,
             nameOnly,
-            details: diffDays === 0 ? "Vence hoje" : `Vence em ${diffDays} dia(s)`,
+            details:
+              diffDays === 0 ? "Vence hoje" : `Vence em ${diffDays} dia(s)`,
             condominioId: condoId,
             condominioName: condoName,
           });
@@ -202,7 +232,12 @@ export async function GET(req: NextRequest) {
       // 4) Overdue só p/ não recorrentes com start passado e não concluídas
       const freqForOverdue = freqNorm || "Não se repete";
       const start = anchor ? sod(anchor) : null;
-      if (freqForOverdue === "Não se repete" && start && start < today && !t.raw?.completedAt) {
+      if (
+        freqForOverdue === "Não se repete" &&
+        start &&
+        start < today &&
+        !t.raw?.completedAt
+      ) {
         out.push({
           atividadeId: t.id,
           when: "overdue",
@@ -227,12 +262,44 @@ export async function GET(req: NextRequest) {
 
     const orderWhen: Record<When, number> = { overdue: 0, due: 1, pre: 2 };
     itemsOut.sort((a, b) => {
-      if (orderWhen[a.when] !== orderWhen[b.when]) return orderWhen[a.when] - orderWhen[b.when];
-      if (a.condominioName !== b.condominioName) return (a.condominioName || "").localeCompare(b.condominioName || "");
+      if (orderWhen[a.when] !== orderWhen[b.when])
+        return orderWhen[a.when] - orderWhen[b.when];
+      if (a.condominioName !== b.condominioName)
+        return (a.condominioName || "").localeCompare(b.condominioName || "");
       return a.dueDateISO.localeCompare(b.dueDateISO);
     });
 
-    return NextResponse.json(itemsOut);
+    // --- Anexa status do histórico na data de vencimento ---
+    const byDate = new Map<string, { start: Date; end: Date; ids: string[] }>();
+    for (const n of itemsOut) {
+      const k = n.dueDateISO;
+      if (!byDate.has(k)) {
+        const start = new Date(`${k}T00:00:00-03:00`); // Fortaleza (UTC-3)
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        byDate.set(k, { start, end, ids: [] });
+      }
+      byDate.get(k)!.ids.push(String(n.atividadeId));
+    }
+
+    const statusMap = new Map<string, string>(); // key = atividadeId|Y-M-D
+    for (const [ymd, { start, end, ids }] of byDate) {
+      if (!ids.length) continue;
+      const rows = await prisma.atividadeHistorico.findMany({
+        where: {
+          atividadeId: { in: ids },
+          dataReferencia: { gte: start, lt: end },
+        },
+        select: { atividadeId: true, status: true },
+      });
+      for (const r of rows) statusMap.set(`${r.atividadeId}|${ymd}`, r.status);
+    }
+
+    const withStatus = itemsOut.map((n) => {
+      const st = statusMap.get(`${n.atividadeId}|${n.dueDateISO}`) || null;
+      return { ...n, statusOnDueDate: st, isDoneOnDueDate: st === "FEITO" };
+    });
+    return NextResponse.json(withStatus);
   } catch (e: any) {
     if (e?.status) return e;
     console.error("Notifications.GET error:", e);

@@ -9,10 +9,25 @@ const {
 
 const prisma = new PrismaClient();
 
+// === Helpers ===
 function addDays(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d;
+}
+// "Agora" no fuso de Fortaleza (mesma abordagem do backend)
+function nowFortaleza() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" }));
+}
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function yesterdayFortaleza() {
+  const n = nowFortaleza();
+  n.setDate(n.getDate() - 1);
+  return n;
 }
 
 async function main() {
@@ -86,6 +101,10 @@ async function main() {
     "Reparo Portão de Entrada",
     "Higienização Caixa d’Água",
     "Troca Lâmpadas Áreas Comuns",
+    // novas deste seed:
+    "Checklist Diário Portaria",
+    "Troca Extintores (pré-alerta)",
+    "Gerador – Teste Único (overdue)",
   ];
   await prisma.atividade.deleteMany({
     where: {
@@ -236,6 +255,78 @@ async function main() {
     select: { id: true },
   });
 
+  // ===== CASOS PARA NOTIFICAÇÕES =====
+
+  // 1) DUE HOJE (recorrente sem âncora) -> sempre gera notificação "due" hoje (fallback)
+  //    E histórico de HOJE = PENDENTE (não foi feita)
+  const aChecklistHoje = await prisma.atividade.create({
+    data: {
+      name: "Checklist Diário Portaria",
+      type: "Inspeção",
+      quantity: 1,
+      model: "Checklist Portaria",
+      location: "Portaria",
+      prioridade: Prioridade.MEDIO,
+      // Sem âncora: NEM startAt NEM expectedDate
+      frequencia: "Diária", // recorrente
+      equipe: "Equipe interna",
+      tipoAtividade: "Preventiva",
+      observacoes: "Conferir ronda, baterias de rádio e livro de ocorrências.",
+      tags: ["seed", "notificacao", "due-hoje"],
+      budgetStatus: BudgetStatus.SEM_ORCAMENTO,
+      createdAt: addDays(-3),
+      empresaId: empresa.id,
+      condominioId: condA.id,
+    },
+    select: { id: true },
+  });
+
+  // 2) PRÉ-ALERTA (próxima ocorrência amanhã) — útil para testes com leadDays=1
+  const aPreAlerta = await prisma.atividade.create({
+    data: {
+      name: "Troca Extintores (pré-alerta)",
+      type: "Inspeção",
+      quantity: 10,
+      model: "ABC 6kg",
+      location: "Áreas comuns",
+      prioridade: Prioridade.ALTO,
+      frequencia: "Semanal", // recorrente
+      expectedDate: addDays(1), // âncora amanhã
+      equipe: "Terceirizada",
+      tipoAtividade: "Preventiva",
+      observacoes: "Checar validade e lacres.",
+      tags: ["seed", "notificacao", "pre-alerta"],
+      budgetStatus: BudgetStatus.PENDENTE,
+      createdAt: addDays(-4),
+      empresaId: empresa.id,
+      condominioId: condB.id,
+    },
+    select: { id: true },
+  });
+
+  // 3) OVERDUE (não recorrente com start/expected no passado e não concluída)
+  const aOverdue = await prisma.atividade.create({
+    data: {
+      name: "Gerador – Teste Único (overdue)",
+      type: "Teste",
+      quantity: 1,
+      model: "Carga 50%",
+      location: "Casa de Máquinas",
+      prioridade: Prioridade.ALTO,
+      frequencia: "Uma vez", // Não se repete
+      expectedDate: addDays(-5), // âncora passada
+      equipe: "Equipe interna",
+      tipoAtividade: "Preventiva",
+      observacoes: "Executar checklist de partida e estabilização.",
+      tags: ["seed", "notificacao", "overdue"],
+      budgetStatus: BudgetStatus.SEM_ORCAMENTO,
+      createdAt: addDays(-6),
+      empresaId: empresa.id,
+      condominioId: condA.id,
+    },
+    select: { id: true },
+  });
+
   // ===== Histórico (estado das execuções) =====
   await prisma.atividadeHistorico.createMany({
     data: [
@@ -277,10 +368,34 @@ async function main() {
         dataReferencia: addDays(1),
         status: HistoricoStatus.PENDENTE,
       },
+
+      // ===== Casos de notificação (estado) =====
+
+      // 1) Due HOJE e NÃO FEITA
+      //    dataReferencia em qualquer horário de hoje (TZ Fortaleza) funciona com a janela do endpoint
+      {
+        atividadeId: aChecklistHoje.id,
+        dataReferencia: nowFortaleza(),
+        status: HistoricoStatus.PENDENTE,
+        observacoes: "Ainda não executada hoje (seed).",
+      },
+      // Ontem foi feito — só para dar histórico útil
+      {
+        atividadeId: aChecklistHoje.id,
+        dataReferencia: startOfDay(yesterdayFortaleza()),
+        status: HistoricoStatus.FEITO,
+        completedAt: startOfDay(yesterdayFortaleza()),
+        observacoes: "Concluída ontem (seed).",
+      },
+
+      // 2) Pré-alerta: não precisa histórico (a notificação é de futuro próximo)
+
+      // 3) Overdue: não recorrente passado, sem completedAt => notificação "overdue"
+      //    (sem histórico de FEITO para continuar atrasada)
     ],
   });
 
-  console.log("✅ Seed pronto.");
+  console.log("✅ Seed pronto: inclui atividade recorrente sem âncora DUE HOJE (PENDENTE), pré-alerta e overdue.");
 }
 
 main()

@@ -179,30 +179,34 @@ export default function CalendarView({ onEdit }) {
   };
 
   // ações de status usando enum novo
-  const handleStart = useCallback(async (id) => {
-    await updateAtividade(id, {
-      status: "EM_ANDAMENTO",
-      startAt: new Date().toISOString(),
-      completedAt: null,
-    });
-  }, [updateAtividade]);
+ const handleStart = useCallback(async (id) => {
+   await updateAtividade(id, {
+     status: "EM_ANDAMENTO",
+     startAt: new Date().toISOString(),
+   });
+ }, [updateAtividade]);
 
-  const handleFinish = useCallback(async (id) => {
-    const now = new Date().toISOString();
-    await updateAtividade(id, {
-      status: "HISTORICO",
-      endAt: now,
-      completedAt: now,
-    });
-  }, [updateAtividade]);
+ const handleFinish = useCallback(async (id) => {
+   const now = new Date();
+   // (1) grava histórico do DIA com FEITO
+   await updateAtividade(id, {
+     status: "FEITO",                   // <- status do HISTÓRICO
+     dataReferencia: now.toISOString(), // o backend normaliza a data
+     completedAt: now.toISOString(),
+   });
+   // (2) atualiza o molde para fechar a atividade (mantém UI)
+   await updateAtividade(id, {
+     status: "HISTORICO",
+     endAt: now.toISOString(),
+   });
+ }, [updateAtividade]);
 
-  const handleReopen = useCallback(async (id) => {
-    await updateAtividade(id, {
-      status: "PENDENTE",
-      completedAt: null,
-      endAt: null,
-    });
-  }, [updateAtividade]);
+ const handleReopen = useCallback(async (id) => {
+   await updateAtividade(id, {
+     status: "PENDENTE",
+     endAt: null,
+   });
+ }, [updateAtividade]);
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
