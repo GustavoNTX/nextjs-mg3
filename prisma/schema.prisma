@@ -5,66 +5,62 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Empresa {
-  id        String   @id @default(uuid())
-  name      String   @db.VarChar(255)
-  cnpj      String?  @db.VarChar(120)
-  empresaToken String   @unique @default(uuid())
-  email        String   @unique @db.VarChar(255)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users       User[]
-  condominios Condominio[]
-  atividades  Atividade[]
+  id           String       @id @default(uuid())
+  name         String       @db.VarChar(255)
+  cnpj         String?      @db.VarChar(120)
+  empresaToken String       @unique @default(uuid())
+  email        String       @unique @db.VarChar(255)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  users        User[]
+  condominios  Condominio[]
+  atividades   Atividade[]
 
   @@index([name])
 }
 
 model User {
-  id           String  @id @default(uuid())
-  email        String  @unique @db.VarChar(255)
-  name         String? @db.VarChar(120)
-  passwordHash String  @db.VarChar(255)
-  refreshToken String? @db.Text
-  role         Role    @default(USER)
+  id           String       @id @default(uuid())
+  email        String       @unique @db.VarChar(255)
+  name         String?      @db.VarChar(120)
+  passwordHash String       @db.VarChar(255)
+  refreshToken String?      @db.Text
+  role         Role         @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  empresaId String
-  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // RELAÇÃO ADICIONADA: Permite ver quais execuções um usuário completou
+  atividadesConcluidas AtividadeHistorico[]
 
   @@index([empresaId])
 }
 
 model Condominio {
-  id           String  @id @default(uuid())
-  name         String  @db.VarChar(120)
-  cnpj         String? @unique @db.VarChar(255)
-  address      String  @db.VarChar(160)
-  neighborhood String  @db.VarChar(80)
-  city         String  @db.VarChar(80)
-  state        String  @db.VarChar(2)
-  type         String  @db.VarChar(30)
-  imageUrl     String? @db.VarChar(255)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  empresaId String
-  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-
+  id           String       @id @default(uuid())
+  name         String       @db.VarChar(120)
+  cnpj         String?      @unique @db.VarChar(255)
+  address      String       @db.VarChar(160)
+  neighborhood String       @db.VarChar(80)
+  city         String       @db.VarChar(80)
+  state        String       @db.VarChar(2)
+  type         String       @db.VarChar(30)
+  imageUrl     String?      @db.VarChar(255)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   referenceId  String?
   reference    Condominio?  @relation(name: "CondominioReferencia", fields: [referenceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   referencedBy Condominio[] @relation(name: "CondominioReferencia")
-
-  atividades Atividade[]
+  atividades   Atividade[]
 
   @@index([empresaId])
   @@index([city, state])
@@ -72,13 +68,8 @@ model Condominio {
   @@index([referenceId])
 }
 
-// Enums novos
-enum AtividadeStatus {
-  PROXIMAS
-  EM_ANDAMENTO
-  PENDENTE
-  HISTORICO
-}
+// --- ENUM REMOVIDO ---
+// O enum AtividadeStatus foi removido por não estar mais em uso.
 
 enum Prioridade {
   BAIXO
@@ -94,55 +85,87 @@ enum BudgetStatus {
   REPROVADO
 }
 
+// ENUM: Para o status da execução
+enum HistoricoStatus {
+  PENDENTE
+  FEITO
+  PULADO
+  ATRASADO
+}
+
+// --- MODELO ATUALIZADO ---
+// Esta tabela agora é o "MOLDE" da atividade (o que fazer e com que frequência)
 model Atividade {
-  id       String  @id @default(uuid())
-  name     String  @db.VarChar(120)
-  type     String  @db.VarChar(80)
+  id       String @id @default(uuid())
+  name     String @db.VarChar(120)
+  type     String @db.VarChar(80)
   quantity Int
-  model    String  @db.VarChar(160)
-  location String  @db.VarChar(120)
+  model    String @db.VarChar(160)
+  location String @db.VarChar(120)
   photoUrl String? @db.VarChar(255)
 
-  // novo: enum
-  status     AtividadeStatus @default(PROXIMAS)
-  prioridade Prioridade      @default(BAIXO)
+  // Prioridade padrão para este molde
+  prioridade Prioridade @default(BAIXO)
 
-  frequencia    String  @default("Não se repete") @db.VarChar(100)
-  equipe        String  @default("Equipe interna") @db.VarChar(100)
-  tipoAtividade String  @default("Preventiva") @db.VarChar(100)
+  // Informações do molde
+  frequencia    String @default("Não se repete") @db.VarChar(100)
+  equipe        String @default("Equipe interna") @db.VarChar(100)
+  tipoAtividade String @default("Preventiva") @db.VarChar(100)
   observacoes   String? @db.Text
 
-  // datas (V2)
+  // Data de "âncora" ou início para o cálculo de recorrência
   expectedDate DateTime?
-  startAt      DateTime?
-  endAt        DateTime?
-  completedAt  DateTime?
 
-  // listas/extra
-  tags String[] @default([])
-
-
-  // orçamento
+  // Extras do molde
+  tags           String[]     @default([])
   budgetStatus   BudgetStatus @default(SEM_ORCAMENTO)
   costEstimate   Decimal?     @db.Decimal(12, 2)
   approvedBudget Decimal?     @db.Decimal(12, 2)
+  appliedStandard String?      @db.VarChar(120)
 
-  appliedStandard String? @db.VarChar(120)
-
+  // Soft delete + auditoria
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  empresaId String
-  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-
+  // Relacionamentos
+  empresaId    String
+  empresa      Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   condominioId String
   condominio   Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
+  // RELAÇÃO ADICIONADA: Link para todos os registros de execução
+  historico AtividadeHistorico[]
+
   @@index([empresaId])
   @@index([condominioId])
-  @@index([status])
   @@index([expectedDate])
+  @@index([createdAt])
+}
+
+// Esta tabela é a "EXECUÇÃO" (o histórico de quando foi feita)
+model AtividadeHistorico {
+  id             String          @id @default(uuid())
+  atividadeId    String
+  atividade      Atividade       @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  dataReferencia DateTime        @db.Date
+  status         HistoricoStatus @default(PENDENTE)
+  completedAt    DateTime?
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  observacoes    String?         @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // --- ÍNDICES OTIMIZADOS ---
+  // Garante que só exista uma execução por dia para a mesma atividade
+  @@unique([atividadeId, dataReferencia], map: "atividade_dataref_uk")
+  
+  // Otimiza a busca por "tarefas pendentes de hoje" (consulta mais comum)
+  @@index([dataReferencia, status])
+  
+  // Otimiza a busca por "tarefas feitas por um usuário"
+  @@index([userId])
 }
 
 enum Role {

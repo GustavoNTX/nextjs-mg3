@@ -49,7 +49,7 @@ export default function EditCondominioDialog({
   onSave,
   condominio,
 }) {
-  const { enterCronograma } = useCondominoUI();
+  const { enterAtividades } = useCondominoUI();
 
   const router = useRouter();
   const [values, setValues] = useState(condominio || {});
@@ -76,13 +76,23 @@ export default function EditCondominioDialog({
     onClose();
   };
 
-  const handleOpenCronograma = () => {
-    enterCronograma({
-      id: condominio.id,
-      name: condominio.name,
-      logoUrl: condominio.imageUrl,
-    });
-    router.push(`/cronograma/${condominio.id}`);
+  const handleOpenAtividades = (alvoId = condominio?.id) => {
+    if (alvoId) {
+      enterAtividades({
+        id: alvoId,
+        name: condominio?.name ?? "",
+        logoUrl: condominio?.imageUrl ?? null,
+      });
+      router.push(`/atividades/${alvoId}`);
+    } else {
+      // modo "Todos"
+      enterAtividades({
+        id: null,
+        name: "Todos os condomínios",
+        logoUrl: null,
+      });
+      router.push(`/atividades`);
+    }
   };
 
   return (
@@ -234,9 +244,9 @@ export default function EditCondominioDialog({
           <Button
             variant="contained"
             endIcon={<ArrowForwardIosIcon />}
-            onClick={handleOpenCronograma}
+            onClick={() => handleOpenAtividades(condominio.id)}
           >
-            Abrir Cronograma
+            Abrir Atividades
           </Button>
           <Button
             variant="contained"

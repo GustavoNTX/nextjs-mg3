@@ -29,8 +29,8 @@ export default function Layout({ children }) {
       case "/selecione-o-condominio":
         setPageTitle("Selecione o Condomínio");
         break;
-      case "/cronograma":
-        setPageTitle("Cronograma");
+      case "/atividades":
+        setPageTitle("Atividades");
         break;
       case "/configuracoes":
         setPageTitle("Configurações");

@@ -1,5 +1,6 @@
 // src/config/menuItems.js
 import {
+  Home as HomeIcon,
   Description as DescriptionIcon,
   BarChart as BarChartIcon,
   Settings as SettingsIcon,
@@ -13,6 +14,7 @@ import {
 } from "@mui/icons-material";
 
 export const menuItems = [
+  { text: "Home", icon: <HomeIcon />, path: "/" },
   {
     text: "Lista de Ativos",
     icon: <DescriptionIcon />,

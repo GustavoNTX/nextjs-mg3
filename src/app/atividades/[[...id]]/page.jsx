@@ -1,5 +1,6 @@
 "use client";
 
+// 'useMemo' foi removido dos imports do React
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/components/Layout";
@@ -33,6 +34,7 @@ import {
   AtividadesProvider,
   useAtividades,
 } from "@/contexts/AtividadesContext";
+import SelectCondominio from "@/components/SelectCondominio";
 
 // Normaliza qualquer formato vindo do backend para boolean
 const normalizeStatus = (s) => {
@@ -54,23 +56,24 @@ const encodeStatus = (bool) =>
 
 function HeaderResumo() {
   const { selected } = useCondominoUI();
-  const { stats, loading } = useAtividades();
+  const {
+    // <<< CORREÇÃO: 'items' removido, não é mais usado aqui
+    stats,
+    loading,
+    totalAtividadesNosCondominios,
+  } = useAtividades();
 
-  // fallback seguro baseado nos itens carregados
-  const safe = useMemo(() => {
-    const total = items.length;
-    const emAndamento = items.filter((a) => normalizeStatus(a?.status)).length;
-    const pendentes = total - emAndamento;
-    return { total, emAndamento, pendentes };
-  }, [items]);
+  console.log(useAtividades());
 
-  const total = Number.isFinite(stats?.total) ? stats.total : safe.total;
-  const funcionando = Number.isFinite(stats?.emAndamento)
-    ? stats.emAndamento
-    : safe.emAndamento;
-  const pendentes = Number.isFinite(stats?.pendentes)
-    ? stats.pendentes
-    : safe.pendentes;
+  // <<< CORREÇÃO: O bloco 'safe = useMemo(...)' foi removido
+  // Ele estava calculando os stats de forma errada.
+
+  const total = totalAtividadesNosCondominios;
+  
+  // <<< CORREÇÃO: Usar 'stats' diretamente, com fallback para 0.
+  // 'stats' já é calculado no AtividadesContext usando a lógica correta (inferStatus)
+  const funcionando = stats?.emAndamento ?? 0;
+  const pendentes = stats?.pendentes ?? 0;
 
   return (
     <Stack
@@ -105,54 +108,50 @@ function CronogramaInner() {
   const { fetchWithAuth } = useAuth();
   const router = useRouter();
   const params = useParams();
-
+  const rawId = params?.id;
   const id =
-    typeof params?.id === "string"
-      ? params.id
-      : Array.isArray(params?.id)
-      ? params.id[0]
+    typeof rawId === "string"
+      ? rawId
+      : Array.isArray(rawId)
+      ? rawId[0]
       : undefined;
+  const singleMode = !!id;
 
   const [currentTab, setCurrentTab] = useState(0);
   const [loadingCondominio, setLoadingCondominio] = useState(true);
   const [addAtividadeOpen, setAddAtividadeOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null); // <- item sendo editado
+  const [editingItem, setEditingItem] = useState(null);
 
   const { items: condominios } = useCondominios();
 
-  // Garanta que seu contexto exponha updateAtividade
+  // do contexto de atividades
   const { load, createAtividade, updateAtividade } = useAtividades();
 
   const handleTabChange = (_e, newValue) => setCurrentTab(newValue);
 
-  // Abrir para criar
   const handleOpenCreate = useCallback(() => {
     setEditingItem(null);
     setAddAtividadeOpen(true);
   }, []);
 
-  // Abrir para editar (recebe o item da lista/kanban/calendário)
   const handleOpenEdit = useCallback((item) => {
     setEditingItem(item || null);
     setAddAtividadeOpen(true);
   }, []);
 
-  // Salvar (criar/editar) — compatível com o AddAtividadeDialog proposto
   const handleSaveDialog = useCallback(
     async (payload, { mode }) => {
       try {
-        // clona e normaliza/encode status se vier no payload
         const dto = { ...payload };
-        if ("status" in dto) {
+        if ("status" in dto)
           dto.status = encodeStatus(normalizeStatus(dto.status));
-        }
 
         const result =
           mode === "edit" && dto?.id
             ? await updateAtividade(dto.id, dto)
-            : await createAtividade(dto, id);
+            : await createAtividade(dto, id ?? dto?.condominioId);
 
-        await load({ condominioId: id, reset: true });
+        if (id) await load({ condominioId: id, reset: true }); // <-- só consulta com condominioId
         return result;
       } catch (e) {
         console.error(e);
@@ -162,17 +161,18 @@ function CronogramaInner() {
     [updateAtividade, createAtividade, id, load]
   );
 
-  const handleCloseDialog = useCallback(() => {
-    setAddAtividadeOpen(false);
-  }, []);
+  const handleCloseDialog = useCallback(() => setAddAtividadeOpen(false), []);
 
-  // carrega dados do condomínio e define selected
+  // carrega dados do condomínio
   useEffect(() => {
-    if (!id) return;
+    if (!singleMode) {
+      setSelected({ id: null, name: "Selecione um condomínio", logoUrl: null });
+      setLoadingCondominio(false);
+      return;
+    }
     setSelected((prev) => prev ?? { id, name: "Carregando...", logoUrl: null });
 
     const controller = new AbortController();
-
     (async () => {
       try {
         const res = await fetchWithAuth(`/api/condominios/${id}`, {
@@ -195,31 +195,42 @@ function CronogramaInner() {
           logoUrl: item.imageUrl ?? null,
         });
       } catch (err) {
-        if (err?.name !== "AbortError") {
+        if (err?.name !== "AbortError")
           router.replace("/selecione-o-condominio");
-        }
       } finally {
         setLoadingCondominio(false);
       }
     })();
 
     return () => controller.abort();
-  }, [id, fetchWithAuth, router, setSelected]);
+  }, [singleMode, id, fetchWithAuth, router, setSelected]);
 
-  // carrega atividades ao trocar o condomínio
+  // consulta atividades — SOMENTE se houver condominioId (API exige)
   useEffect(() => {
     if (!id) return;
     load({ condominioId: id, reset: true });
   }, [id, load]);
 
-  if (!id || loadingCondominio) return null;
+  if (singleMode && loadingCondominio) return null;
 
   return (
     <>
       <HeaderResumo />
 
       <Divider sx={{ mb: 2 }} />
-
+      <Stack direction="row" justifyContent="flex-end" spacing={2} mb={3}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleOpenCreate}
+          disabled={!singleMode}
+        >
+          Adicionar Atividade
+        </Button>
+      </Stack>
+      <Box sx={{ mb: 2 }}>
+        <SelectCondominio fullWidth />
+      </Box>
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
         <Tabs value={currentTab} onChange={handleTabChange}>
           <Tab label="LISTA" />
@@ -228,19 +239,7 @@ function CronogramaInner() {
         </Tabs>
       </Box>
 
-      <Stack direction="row" justifyContent="flex-end" spacing={2} mb={3}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-        >
-          Adicionar Atividade
-        </Button>
-        <Button variant="outlined">Filtros</Button>
-      </Stack>
-
       <Box>
-        {/* Passe onEdit para permitir abrir o diálogo em modo edição (se o componente consumir) */}
         {currentTab === 0 && <ListaAtividades onEdit={handleOpenEdit} />}
         {currentTab === 1 && <CalendarView onEdit={handleOpenEdit} />}
         {currentTab === 2 && <KanbanBoard onEdit={handleOpenEdit} />}

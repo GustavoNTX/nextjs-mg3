@@ -9,13 +9,15 @@ const bodySchema = z.object({
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
 })
 
+type RouteParams = { token: string }
+
 export async function POST(
   req: Request,
-  context: { params: { token: string } }
+  context: { params: Promise<RouteParams> } // <- params agora é Promise
 ) {
   try {
-    const { token } = context.params
-    // valida que o token tem formato UUID
+    const { token } = await context.params          // <- await aqui
+
     const tokenSchema = z.string().uuid('Token de empresa inválido')
     const empresaToken = tokenSchema.parse(token)
 
@@ -23,7 +25,10 @@ export async function POST(
 
     const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
-      return NextResponse.json({ error: 'Este e-mail já está em uso' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'Este e-mail já está em uso' },
+        { status: 409 },
+      )
     }
 
     const empresa = await prisma.empresa.findUnique({
@@ -31,7 +36,10 @@ export async function POST(
       select: { id: true },
     })
     if (!empresa) {
-      return NextResponse.json({ error: 'Empresa não encontrada para esse token' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Empresa não encontrada para esse token' },
+        { status: 404 },
+      )
     }
 
     const passwordHash = await bcrypt.hash(password, 10)
@@ -43,13 +51,22 @@ export async function POST(
         passwordHash,
         empresa: { connect: { id: empresa.id } },
       },
-      select: { id: true, name: true, email: true, empresaId: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        empresaId: true,
+        createdAt: true,
+      },
     })
 
     return NextResponse.json(user, { status: 201 })
   } catch (err: any) {
     if (err?.name === 'ZodError') {
-      return NextResponse.json({ error: 'Validação falhou', issues: err.flatten() }, { status: 422 })
+      return NextResponse.json(
+        { error: 'Validação falhou', issues: err.flatten() },
+        { status: 422 },
+      )
     }
     console.error('Erro no registro:', err)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
