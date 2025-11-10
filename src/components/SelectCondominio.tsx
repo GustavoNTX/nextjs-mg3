@@ -6,7 +6,17 @@ import { useRouter } from "next/navigation";
 import { useCondominios } from "@/contexts/CondominiosContext";
 import { useCondominoUI } from "@/contexts/CondominoUIContext";
 
-export default function SelectCondominio({ fullWidth = true, size = "small", sx }) {
+type SelectCondominioProps = {
+  fullWidth?: boolean;
+  size?: "small" | "medium"; 
+  sx?: any;                  
+};
+
+export default function SelectCondominio({
+  fullWidth = true,
+  size = "small",
+  sx,
+}: SelectCondominioProps) {
   const router = useRouter();
   const { items: condominios = [], loading } = useCondominios();
   const { selected, setSelected } = useCondominoUI();
@@ -44,7 +54,7 @@ export default function SelectCondominio({ fullWidth = true, size = "small", sx 
         <TextField {...params} label="Condomínio" placeholder="Selecione..." />
       )}
       fullWidth={fullWidth}
-      size={size}
+      size={size} // agora bate com o tipo
       sx={sx}
     />
   );
