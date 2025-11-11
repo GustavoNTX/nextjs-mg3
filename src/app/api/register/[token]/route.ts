@@ -13,10 +13,10 @@ type RouteParams = { token: string }
 
 export async function POST(
   req: Request,
-  context: { params: Promise<RouteParams> } // <- params agora é Promise
+  context: { params: Promise<RouteParams> }
 ) {
   try {
-    const { token } = await context.params          // <- await aqui
+    const { token } = await context.params
 
     const tokenSchema = z.string().uuid('Token de empresa inválido')
     const empresaToken = tokenSchema.parse(token)

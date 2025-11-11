@@ -120,7 +120,7 @@ export default function EmpresasPage() {
         {view === "form" && (
           <>
             <Typography variant="h5" sx={{ mb: 2, fontWeight: "bold" }}>
-              Nova empresa
+              Criar empresa
             </Typography>
 
             <TextField
