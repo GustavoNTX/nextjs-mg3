@@ -4,14 +4,22 @@ import { NextResponse, NextRequest } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
 
+import { FREQUENCIAS } from "@/utils/frequencias";
+import type { Frequencia } from "@/utils/frequencias";
+import { agendarProximaExecucaoSeFeito } from "@/services/atividade";
+
+import {
+  TaskLike,
+  HistoricoLike,
+  getStatusNoDia,
+  buildCalendar,
+} from "@/utils/atividadeStatus";
+
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/** -------- helpers --------
- * ATENÇÃO: getEmpresaIdFromRequest apenas decodifica o JWT.
- * Em produção, valide a assinatura do token.
- */
+/** -------- helpers -------- */
 async function getEmpresaIdFromRequest(): Promise<string | null> {
   const h = await headers();
 
@@ -33,8 +41,8 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
       const [, payloadB64] = token.split(".");
       if (payloadB64) {
         const b64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
-        const json = Buffer.from(b64, "base64").toString("utf8");
-        const payload = JSON.parse(json);
+        const jsonStr = Buffer.from(b64, "base64").toString("utf8");
+        const payload = JSON.parse(jsonStr);
         const sub = payload?.sub as string | undefined;
         const email = payload?.email as string | undefined;
 
@@ -66,23 +74,28 @@ function json(status: number, body: any) {
 
 function ensureEmpresaMatch(authEmpresaId: string, inputEmpresaId?: string) {
   if (!inputEmpresaId) throw json(400, { error: "empresaId é obrigatório" });
-  if (authEmpresaId !== inputEmpresaId) throw json(403, { error: "empresaId não corresponde ao usuário" });
+  if (authEmpresaId !== inputEmpresaId)
+    throw json(403, { error: "empresaId não corresponde ao usuário" });
 }
 
 const dateFlex = () =>
-  z.preprocess((v) => (v == null || v === "" ? null : new Date(v as any)), z.date().nullable());
+  z.preprocess(
+    (v) => (v == null || v === "" ? null : new Date(v as any)),
+    z.date().nullable(),
+  );
 
 /** --- normalizadores/enums --- */
 type AtividadeStatus = "PROXIMAS" | "EM_ANDAMENTO" | "PENDENTE" | "HISTORICO";
 const STATUS_MAP: Record<string, AtividadeStatus> = {
   PROXIMAS: "PROXIMAS",
-  "PRÓXIMAS": "PROXIMAS",
+  PRÓXIMAS: "PROXIMAS",
   EM_ANDAMENTO: "EM_ANDAMENTO",
   "EM ANDAMENTO": "EM_ANDAMENTO",
   PENDENTE: "PENDENTE",
   HISTORICO: "HISTORICO",
-  "HISTÓRICO": "HISTORICO",
+  HISTÓRICO: "HISTORICO",
 };
+
 function toStatusEnum(input: unknown): AtividadeStatus | undefined {
   if (typeof input === "boolean") return input ? "EM_ANDAMENTO" : "PENDENTE";
   if (typeof input === "string") return STATUS_MAP[input.trim().toUpperCase()];
@@ -99,7 +112,13 @@ function toPrioridadeEnum(input?: string | null): Prioridade | undefined {
 }
 
 type BudgetStatus = "SEM_ORCAMENTO" | "PENDENTE" | "APROVADO" | "REPROVADO";
-const BUDGET_SET = new Set(["SEM_ORCAMENTO", "SEM ORÇAMENTO", "PENDENTE", "APROVADO", "REPROVADO"]);
+const BUDGET_SET = new Set([
+  "SEM_ORCAMENTO",
+  "SEM ORÇAMENTO",
+  "PENDENTE",
+  "APROVADO",
+  "REPROVADO",
+]);
 function toBudgetEnum(input?: string | null): BudgetStatus | undefined {
   if (!input) return undefined;
   const s = input.trim().toUpperCase();
@@ -108,11 +127,21 @@ function toBudgetEnum(input?: string | null): BudgetStatus | undefined {
   return s.replace(" ", "_") as BudgetStatus;
 }
 
-/** ---------- GET ----------
- * Requer: ?empresaId & ?condominioId na query. Retorna 404 se escopo não bater.
- */
-// app/api/atividades/[id]/route.ts (trecho GET)
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+/** --- validação de frequencia --- */
+const FREQUENCIA_SET = new Set<string>(FREQUENCIAS as readonly string[]);
+
+function toFrequenciaEnum(input?: string | null): Frequencia | undefined {
+  if (!input) return undefined;
+  const s = input.trim();
+  if (!FREQUENCIA_SET.has(s)) return undefined;
+  return s as Frequencia;
+}
+
+/** ---------- GET ---------- */
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
@@ -121,29 +150,67 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const empresaId = searchParams.get("empresaId") ?? undefined;
     const condominioId = searchParams.get("condominioId") ?? undefined;
     ensureEmpresaMatch(authEmpresaId, empresaId);
-    if (!condominioId) return json(400, { error: "condominioId é obrigatório" });
+    if (!condominioId)
+      return json(400, { error: "condominioId é obrigatório" });
 
     const { id } = await ctx.params;
 
-    // 1) Valida escopo no MOLDE
     const item = await prisma.atividade.findFirst({
       where: { id, empresaId: authEmpresaId, condominioId },
-      include: { condominio: { select: { id: true, name: true } } },
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            name: true,
+            // se tiver no schema, você pode expor:
+            // dataEntrega: true,
+          },
+        },
+        historico: {
+          // carrega todo o histórico; se quiser só no range, pode otimizar
+          orderBy: { dataReferencia: "asc" },
+        },
+      },
     });
     if (!item) return json(404, { error: "Atividade não encontrada" });
 
-    // 2) Período opcional
     const toDate = (v: string | null) => (v ? new Date(v) : null);
     const from = toDate(searchParams.get("from"));
-    const to   = toDate(searchParams.get("to"));
+    const to = toDate(searchParams.get("to"));
     const wantStats = searchParams.get("stats") === "1";
 
+    // monta TaskLike a partir do molde
+    const taskLike: TaskLike = {
+      id: item.id,
+      name: item.name,
+      frequency: item.frequencia,
+      startDate: (item.expectedDate ?? item.createdAt).toISOString(),
+      // se tiver a data de entrega do condomínio no schema:
+      // buildingDeliveryDate: item.condominio?.dataEntrega?.toISOString(),
+    };
+
+    // converte histórico completo da atividade pra HistoricoLike
+    const historicoLike: HistoricoLike[] = item.historico.map((h) => ({
+      atividadeId: item.id,
+      dataReferencia: h.dataReferencia.toISOString(),
+      status: h.status,
+      completedAt: h.completedAt?.toISOString() ?? null,
+      observacoes: h.observacoes ?? null,
+    }));
+
+    const hoje = new Date();
+
+    const statusHoje = getStatusNoDia(taskLike, historicoLike, hoje);
+
+    // se não pediu stats ou não mandou range, devolve só a atividade + statusHoje
     if (!wantStats || !from || !to) {
-      // comportamento antigo
-      return NextResponse.json(item);
+      return NextResponse.json({
+        atividade: item,
+        statusHoje, // {esperadoHoje, statusHoje, historicoHoje}
+      });
     }
 
-    // 3) Estatísticas por período (Postgres)
+    // aqui mantém tuas stats SQL como já estavam, mas agora só dentro do range
     const [summary] = await prisma.$queryRaw<
       Array<{ feitos: number; nao_feitos: number; total: number }>
     >`
@@ -171,18 +238,40 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       ORDER BY h."dataReferencia"
     `;
 
-    const historico = await prisma.atividadeHistorico.findMany({
+    // histórico detalhado já no range
+    const historicoRange = await prisma.atividadeHistorico.findMany({
       where: { atividadeId: id, dataReferencia: { gte: from, lte: to } },
       orderBy: { dataReferencia: "asc" },
-      select: { id: true, dataReferencia: true, status: true, completedAt: true, userId: true, observacoes: true },
+      select: {
+        id: true,
+        dataReferencia: true,
+        status: true,
+        completedAt: true,
+        userId: true,
+        observacoes: true,
+      },
     });
+
+    // monta calendarinho: dias que deveriam ter ocorrência no range, com status
+    const calendario = buildCalendar(
+      taskLike,
+      historicoLike,
+      from,
+      to,
+    ).map((d) => ({
+      data: d.data,
+      esperado: d.esperado,
+      status: d.status,
+    }));
 
     return NextResponse.json({
       atividade: item,
       range: { from, to },
+      statusHoje,
       stats: summary ?? { feitos: 0, nao_feitos: 0, total: 0 },
       byDay,
-      historico,
+      historico: historicoRange,
+      calendario,
     });
   } catch (e: any) {
     if (e?.status) return e;
@@ -191,40 +280,46 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 }
 
-
-/** ---------- PATCH ----------
- * Requer no body: empresaId, condominioId.
- * Atualiza somente campos presentes. Proteção multi-tenant via updateMany({ id, empresaId, condominioId }).
- */
-// PATCH permissivo: app/api/atividades/[id]/route.ts (trecho)
-const HIST_SET = new Set(["PENDENTE","FEITO","PULADO","ATRASADO"]);
+/** ---------- PATCH ---------- */
+const HIST_SET = new Set(["PENDENTE", "FEITO", "PULADO", "ATRASADO"]);
 
 function toHistoricoStatus(input: unknown) {
   if (typeof input !== "string") return undefined;
   const s = input.trim().toUpperCase();
-  return HIST_SET.has(s) ? (s as "PENDENTE"|"FEITO"|"PULADO"|"ATRASADO") : undefined;
+  return HIST_SET.has(s)
+    ? (s as "PENDENTE" | "FEITO" | "PULADO" | "ATRASADO")
+    : undefined;
 }
 
-const patchSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresaId: z.string().uuid(),
-  condominioId: z.string().uuid(),
+const patchSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    empresaId: z.string().uuid(),
+    condominioId: z.string().uuid(),
 
-  // campos do molde (todos opcionais)
-  expectedDate: dateFlex().optional(),
-  prioridade: z.string().optional(),
-  budgetStatus: z.string().optional(),
-  appliedStandard: z.string().optional(),
-  observacoes: z.string().optional().nullable(),
-  tags: z.array(z.string()).optional(),
+    // molde
+    expectedDate: dateFlex().optional(),
+    prioridade: z.string().optional(),
+    budgetStatus: z.string().optional(),
+    appliedStandard: z.string().optional(),
+    observacoes: z.string().optional().nullable(),
+    tags: z.array(z.string()).optional(),
+    frequencia: z.string().optional(), // NOVO CAMPO
 
-  // campos de histórico (opcionais)
-  dataReferencia: z.preprocess((v) => (v ? new Date(v as any) : undefined), z.date().optional()),
-  status: z.union([z.boolean(), z.string()]).optional(),
-  completedAt: dateFlex().optional(),
-}).passthrough(); // <= deixa passar chaves desconhecidas (sem erro)
+    // histórico
+    dataReferencia: z.preprocess(
+      (v) => (v ? new Date(v as any) : undefined),
+      z.date().optional(),
+    ),
+    status: z.union([z.boolean(), z.string()]).optional(),
+    completedAt: dateFlex().optional(),
+  })
+  .passthrough();
 
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
@@ -232,33 +327,55 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params;
 
     let body: unknown;
-    try { body = await req.json(); } catch { return json(400, { error: "JSON malformado" }); }
+    try {
+      body = await req.json();
+    } catch {
+      return json(400, { error: "JSON malformado" });
+    }
 
     const parsed = patchSchema.safeParse(body);
-    if (!parsed.success) return json(422, { error: "Validação falhou", issues: parsed.error.flatten() });
+    if (!parsed.success)
+      return json(422, {
+        error: "Validação falhou",
+        issues: parsed.error.flatten(),
+      });
     const b = parsed.data as any;
 
-    // escopo
     ensureEmpresaMatch(authEmpresaId, b.empresaId);
 
-    // garante que a atividade existe no escopo
     const molde = await prisma.atividade.findFirst({
-      where: { id, empresaId: authEmpresaId, condominioId: b.condominioId, deletedAt: null },
+      where: {
+        id,
+        empresaId: authEmpresaId,
+        condominioId: b.condominioId,
+        deletedAt: null,
+      },
       select: { id: true },
     });
-    if (!molde) return json(404, { error: "Atividade não encontrada ou fora do escopo." });
+    if (!molde)
+      return json(404, {
+        error: "Atividade não encontrada ou fora do escopo.",
+      });
 
-    // ---------- caminho 1: atualizar HISTÓRICO se veio dataReferencia/status/completedAt ----------
+    // ---------- HISTÓRICO ----------
     const histStatus = toHistoricoStatus(b.status);
     if (b.dataReferencia || histStatus || b.completedAt) {
-      const dataRef = (b.dataReferencia ? new Date(b.dataReferencia) : new Date()) as Date;
+      const dataRef = (b.dataReferencia
+        ? new Date(b.dataReferencia)
+        : new Date()) as Date;
 
       const hist = await prisma.atividadeHistorico.upsert({
-        where: { atividadeId_dataReferencia: { atividadeId: id, dataReferencia: dataRef } },
+        where: {
+          atividadeId_dataReferencia: { atividadeId: id, dataReferencia: dataRef },
+        },
         update: {
           ...(histStatus ? { status: histStatus } : {}),
-          ...(b.completedAt !== undefined ? { completedAt: b.completedAt } : {}),
-          ...(b.observacoes !== undefined ? { observacoes: b.observacoes } : {}),
+          ...(b.completedAt !== undefined
+            ? { completedAt: b.completedAt }
+            : {}),
+          ...(b.observacoes !== undefined
+            ? { observacoes: b.observacoes }
+            : {}),
         },
         create: {
           atividadeId: id,
@@ -266,40 +383,55 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           status: histStatus ?? "PENDENTE",
           completedAt: b.completedAt ?? null,
           observacoes: b.observacoes ?? null,
-          // se quiser atrelar ao usuário do header, preencha userId aqui
         },
-        select: { id: true, dataReferencia: true, status: true, completedAt: true, observacoes: true },
+        select: {
+          id: true,
+          dataReferencia: true,
+          status: true,
+          completedAt: true,
+          observacoes: true,
+        },
+      });
+
+      // se marcou como FEITO, agenda próxima execução
+      await agendarProximaExecucaoSeFeito({
+        atividadeId: id,
+        dataReferencia: hist.dataReferencia,
+        status: hist.status,
       });
 
       return NextResponse.json({ ok: true, historico: hist });
     }
 
-    // ---------- caminho 2: atualizar apenas o MOLDE (ignora campos desconhecidos/antigos) ----------
+    // ---------- MOLDE ----------
     const d: any = {};
 
     if ("expectedDate" in b) d.expectedDate = b.expectedDate;
 
     const prioridadeEnum = toPrioridadeEnum(b.prioridade ?? undefined);
-    if (prioridadeEnum) d.prioridade = prioridadeEnum; // se inválida, IGNORA silenciosamente
+    if (prioridadeEnum) d.prioridade = prioridadeEnum;
 
     const budgetEnum = toBudgetEnum(b.budgetStatus ?? undefined);
-    if (budgetEnum) d.budgetStatus = budgetEnum; // se inválido, IGNORA
+    if (budgetEnum) d.budgetStatus = budgetEnum;
 
     if (b.appliedStandard !== undefined) d.appliedStandard = b.appliedStandard;
     if (b.observacoes !== undefined) d.observacoes = b.observacoes;
     if (b.tags !== undefined) d.tags = Array.isArray(b.tags) ? b.tags : [];
 
-    // nunca tente escrever campos que não existem no molde
-    // (status/startAt/endAt/completedAt do molde foram removidos do schema)
+    const freqEnum = toFrequenciaEnum(b.frequencia ?? undefined);
+    if (freqEnum) d.frequencia = freqEnum;
 
-    if (Object.keys(d).length === 0) return json(400, { error: "Nenhum campo válido para atualizar." });
+    if (Object.keys(d).length === 0)
+      return json(400, { error: "Nenhum campo válido para atualizar." });
 
     const upd = await prisma.atividade.updateMany({
       where: { id, empresaId: authEmpresaId, condominioId: b.condominioId },
       data: d,
     });
     if (upd.count === 0) {
-      return json(404, { error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio)." });
+      return json(404, {
+        error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
+      });
     }
 
     const item = await prisma.atividade.findFirst({
@@ -310,19 +442,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } catch (e: any) {
     if (e?.status) return e;
     console.error("Atividade.PATCH error:", e);
-    const msg = e?.meta?.cause || e?.message || "Não foi possível atualizar a atividade.";
+    const msg =
+      e?.meta?.cause || e?.message || "Não foi possível atualizar a atividade.";
     return json(500, { error: msg });
   }
 }
 
-
-/** ---------- DELETE ----------
- * Requer: ?empresaId & ?condominioId na query.
- * Deleta somente se pertencer à empresa/condomínio do usuário.
- */
+/** ---------- DELETE ---------- */
 export async function DELETE(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
@@ -333,7 +462,8 @@ export async function DELETE(
     const condominioId = searchParams.get("condominioId") ?? undefined;
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
-    if (!condominioId) return json(400, { error: "condominioId é obrigatório" });
+    if (!condominioId)
+      return json(400, { error: "condominioId é obrigatório" });
 
     const { id } = await ctx.params;
 
@@ -341,11 +471,13 @@ export async function DELETE(
       where: { id, empresaId: authEmpresaId, condominioId },
     });
     if (deleted.count === 0) {
-      return json(404, { error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio)." });
+      return json(404, {
+        error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
+      });
     }
     return new NextResponse(null, { status: 204 });
-  } catch (e) {
-    if ((e as any)?.status) return e as any;
+  } catch (e: any) {
+    if (e?.status) return e;
     console.error("Atividade.DELETE error:", e);
     return json(500, { error: "Não foi possível excluir a atividade." });
   }

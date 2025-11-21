@@ -4,8 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
-import { isTaskDueToday, getNextDueDate } from "@/utils/dateLogic";
-import { inferStatus } from "@/utils/atividadeStatus";
+import {
+  isTaskDueToday,
+  getNextDueDate,
+  getStatusNoDia,
+  TaskLike,
+  HistoricoLike,
+} from "@/utils/atividadeStatus";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -64,7 +69,7 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
 
 function ensureEmpresaMatch(
   authEmpresaId: string,
-  inputEmpresaId?: string | null
+  inputEmpresaId?: string | null,
 ) {
   if (!inputEmpresaId) throw json(400, { error: "empresaId é obrigatório" });
   if (authEmpresaId !== inputEmpresaId)
@@ -74,7 +79,7 @@ function ensureEmpresaMatch(
 /* ===== Data (TZ Fortaleza) ===== */
 function startOfDayFortaleza(d: Date | string = new Date()) {
   const x = new Date(
-    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" })
+    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" }),
   );
   x.setHours(0, 0, 0, 0);
   return x;
@@ -114,13 +119,32 @@ type Notification = {
   details?: string; // "Vence hoje" | "Vence em X dia(s)" | "Atrasada"
   condominioId?: string | null;
   condominioName?: string | null;
+  statusOnDueDate?: string | null; // vindo do getStatusNoDia
+  isDoneOnDueDate?: boolean;
+  esperadoNaData?: boolean | null;
 };
 
-/* ===== GET /api/atividades/notifications?empresaId&leadDays=1 =====
-   - Todos os condomínios da empresa
-   - Regras: due hoje, pré-alerta (pre), atrasadas (overdue não-recorrentes)
-   - Ignora concluídas (HISTORICO)
-   - Fallback: recorrentes sem âncora (start/expected) viram "due hoje" */
+/* helpers locais */
+const toYMD = (d: Date) => d.toISOString().slice(0, 10);
+const sod = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const parseYMD = (ymd: string): Date => {
+  const [y, m, d] = ymd.split("-").map((v) => Number(v));
+  return new Date(Date.UTC(y, m - 1, d));
+};
+
+const addDays = (date: Date, amount: number): Date => {
+  const r = new Date(date);
+  r.setUTCDate(r.getUTCDate() + amount);
+  r.setUTCHours(0, 0, 0, 0);
+  return r;
+};
+
+/* ===== GET /api/atividades/notifications?empresaId&leadDays=1 ===== */
 export async function GET(req: NextRequest) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
@@ -130,7 +154,7 @@ export async function GET(req: NextRequest) {
     const empresaId = searchParams.get("empresaId");
     const leadDays = Math.max(
       0,
-      Number(searchParams.get("leadDays") ?? 1) || 0
+      Number(searchParams.get("leadDays") ?? 1) || 0,
     );
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
@@ -142,19 +166,13 @@ export async function GET(req: NextRequest) {
     });
 
     const today = startOfDayFortaleza();
-    const toYMD = (d: Date) => d.toISOString().slice(0, 10);
-    const sod = (d: Date) => {
-      const x = new Date(d);
-      x.setHours(0, 0, 0, 0);
-      return x;
-    };
 
     const tasks = adaptAtividadesToTasks(items);
 
     const out: Notification[] = [];
     for (const t of tasks) {
-      // pula concluídas
-      if (inferStatus(t.raw) === "HISTORICO") continue;
+      // se você tiver inferStatus(t.raw) pra pular HISTORICO, mantém aqui
+      // if (inferStatus(t.raw) === "HISTORICO") continue;
 
       const nameOnly = String(t.name ?? "Atividade");
       const condoId = (t as any).condominioId ?? t.raw?.condominioId ?? null;
@@ -178,7 +196,7 @@ export async function GET(req: NextRequest) {
         : null;
 
       // 1) due hoje?
-      if (isTaskDueToday(t, today)) {
+      if (isTaskDueToday(t as TaskLike, today)) {
         out.push({
           atividadeId: t.id,
           when: "due",
@@ -193,10 +211,10 @@ export async function GET(req: NextRequest) {
       }
 
       // 2) próxima ocorrência calculada normalmente
-      const next = getNextDueDate(t, today);
+      const next = getNextDueDate(t as TaskLike, today);
       if (next) {
         const diffDays = Math.floor(
-          (sod(next).getTime() - today.getTime()) / 86400000
+          (sod(next).getTime() - today.getTime()) / 86400000,
         );
         if (diffDays >= 0 && diffDays <= leadDays) {
           out.push({
@@ -236,7 +254,7 @@ export async function GET(req: NextRequest) {
         freqForOverdue === "Não se repete" &&
         start &&
         start < today &&
-        !t.raw?.completedAt
+        !(t.raw as any)?.completedAt
       ) {
         out.push({
           atividadeId: t.id,
@@ -269,36 +287,118 @@ export async function GET(req: NextRequest) {
       return a.dueDateISO.localeCompare(b.dueDateISO);
     });
 
-    // --- Anexa status do histórico na data de vencimento ---
-    const byDate = new Map<string, { start: Date; end: Date; ids: string[] }>();
-    for (const n of itemsOut) {
-      const k = n.dueDateISO;
-      if (!byDate.has(k)) {
-        const start = new Date(`${k}T00:00:00-03:00`); // Fortaleza (UTC-3)
-        const end = new Date(start);
-        end.setDate(end.getDate() + 1);
-        byDate.set(k, { start, end, ids: [] });
+    // ===== JUNTAR COM A LÓGICA DE HISTÓRICO (getStatusNoDia) =====
+
+    if (itemsOut.length === 0) {
+      return NextResponse.json(itemsOut);
+    }
+
+    // 1) map de TaskLike por atividadeId
+    const taskById = new Map<string, TaskLike>();
+    for (const t of tasks) {
+      const raw = (t as any).raw ?? {};
+      const freq =
+        t.frequency ??
+        (raw as any).frequencia ??
+        (raw as any).frequency ??
+        "Não se repete";
+
+      const startSource =
+        (t as any).startDate ??
+        raw.expectedDate ??
+        raw.createdAt ??
+        new Date();
+
+      const startDate =
+        startSource instanceof Date
+          ? startSource
+          : new Date(startSource as string);
+
+      const key = String(t.id);
+
+      if (!taskById.has(key)) {
+        const tk: TaskLike = {
+          id: t.id,
+          name: t.name,
+          frequency: freq,
+          startDate: startDate.toISOString(),
+          // se tiver data de entrega do condomínio, dá pra colocar aqui:
+          // buildingDeliveryDate: raw.condominio?.dataEntrega?.toISOString(),
+        };
+        taskById.set(key, tk);
       }
-      byDate.get(k)!.ids.push(String(n.atividadeId));
     }
 
-    const statusMap = new Map<string, string>(); // key = atividadeId|Y-M-D
-    for (const [ymd, { start, end, ids }] of byDate) {
-      if (!ids.length) continue;
-      const rows = await prisma.atividadeHistorico.findMany({
-        where: {
-          atividadeId: { in: ids },
-          dataReferencia: { gte: start, lt: end },
+    // 2) pegar o range de datas de vencimento das notificações
+    const allDates = itemsOut.map((n) => n.dueDateISO);
+    const minISO = allDates.reduce((a, b) => (a < b ? a : b));
+    const maxISO = allDates.reduce((a, b) => (a > b ? a : b));
+
+    const minDate = parseYMD(minISO);
+    const maxDate = addDays(parseYMD(maxISO), 1); // lt max+1
+
+    const atividadeIds = Array.from(
+      new Set(itemsOut.map((n) => String(n.atividadeId))),
+    );
+
+    // 3) buscar histórico de todas as atividades notificadas, só nesse range
+    const historicosDb = await prisma.atividadeHistorico.findMany({
+      where: {
+        atividadeId: { in: atividadeIds },
+        dataReferencia: {
+          gte: minDate,
+          lt: maxDate,
         },
-        select: { atividadeId: true, status: true },
+      },
+      select: {
+        atividadeId: true,
+        dataReferencia: true,
+        status: true,
+        completedAt: true,
+        observacoes: true,
+      },
+    });
+
+    const historicoByAtividade = new Map<string, HistoricoLike[]>();
+    for (const h of historicosDb) {
+      const key = String(h.atividadeId);
+      const list = historicoByAtividade.get(key) ?? [];
+      list.push({
+        atividadeId: h.atividadeId,
+        dataReferencia: h.dataReferencia.toISOString(),
+        status: h.status as any,
+        completedAt: h.completedAt?.toISOString() ?? null,
+        observacoes: h.observacoes ?? null,
       });
-      for (const r of rows) statusMap.set(`${r.atividadeId}|${ymd}`, r.status);
+      historicoByAtividade.set(key, list);
     }
 
-    const withStatus = itemsOut.map((n) => {
-      const st = statusMap.get(`${n.atividadeId}|${n.dueDateISO}`) || null;
-      return { ...n, statusOnDueDate: st, isDoneOnDueDate: st === "FEITO" };
+    // 4) aplicar getStatusNoDia por notificação, na data de vencimento
+    const withStatus: Notification[] = itemsOut.map((n) => {
+      const key = String(n.atividadeId);
+      const task = taskById.get(key);
+      const hist = historicoByAtividade.get(key) ?? [];
+
+      if (!task) {
+        return {
+          ...n,
+          statusOnDueDate: null,
+          isDoneOnDueDate: false,
+          esperadoNaData: null,
+        };
+      }
+
+      const dueDate = parseYMD(n.dueDateISO);
+      const statusDia = getStatusNoDia(task, hist, dueDate);
+
+      return {
+        ...n,
+        statusOnDueDate: statusDia.statusHoje,
+        isDoneOnDueDate: statusDia.statusHoje === "FEITO",
+        esperadoNaData: statusDia.esperadoHoje,
+      };
     });
+
     return NextResponse.json(withStatus);
   } catch (e: any) {
     if (e?.status) return e;

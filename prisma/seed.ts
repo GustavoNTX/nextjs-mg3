@@ -307,7 +307,7 @@ async function main() {
   // 3) OVERDUE (não recorrente com start/expected no passado e não concluída)
   const aOverdue = await prisma.atividade.create({
     data: {
-      name: "Gerador – Teste Único (overdue)",
+      name: "Gerador - Teste Único (overdue)",
       type: "Teste",
       quantity: 1,
       model: "Carga 50%",

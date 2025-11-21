@@ -1,3 +1,5 @@
+// frequencies.ts
+
 const DAILY_INTERVALS: Record<string, number> = {
   "Todos os dias": 1,
   "Em dias alternados": 2,
@@ -5,28 +7,57 @@ const DAILY_INTERVALS: Record<string, number> = {
 
 const WEEKLY_INTERVALS: Record<string, number> = {
   "A cada semana": 7,
-  "A cada duas semanas": 14,
+  "A cada 15 dias": 15,
 };
 
 const MONTHLY_INTERVALS: Record<string, number> = {
-  "A cada mês": 1,
-  "A cada dois meses": 2,
-  "A cada três meses": 3,
-  "A cada quatro meses": 4,
-  "A cada cinco meses": 5,
-  "A cada seis meses": 6,
-  "A cada ano": 12,
-  "A cada dois anos": 24,
-  "A cada três anos": 36,
-  "A cada cinco anos": 60,
-  "A cada dez anos": 120,
+  "A cada 1 mês": 1,
+  "A cada 2 meses": 2,
+  "Acada 3 meses": 3,
+  "A cada 4 meses": 4,
+  "A cada 5 meses": 5,
+  "A cada 6 meses": 6,
+  "A cada 1 ano": 12,
+  "A cada 2 anos": 24,
+  "A cada 3 anos": 36,
+  "A cada 5 anos": 60,
+  "A cada 10 anos": 120,
 };
 
 export interface TaskLike {
   id?: number | string;
   name?: string;
-  frequency: string;
-  startDate: string;
+  frequency: string;      // deve bater com FREQUENCIAS
+  startDate: string;      // expectedDate ou createdAt
+  buildingDeliveryDate?: string; // para regra especial do edifício (opcional)
+}
+
+export interface HistoricoLike {
+  atividadeId: string | number;
+  dataReferencia: string; // ISO
+  status: "PENDENTE" | "EM_ANDAMENTO" | "FEITO" | string;
+  completedAt?: string | null;
+  observacoes?: string | null;
+}
+
+export type StatusDia =
+  | "NAO_ESPERADO"
+  | "SEM_REGISTRO"
+  | "PENDENTE"
+  | "EM_ANDAMENTO"
+  | "FEITO"
+  | string;
+
+export interface StatusNoDia {
+  esperadoHoje: boolean;
+  statusHoje: StatusDia;
+  historicoHoje?: HistoricoLike | null;
+}
+
+export interface DiaCalendario {
+  data: Date;
+  esperado: boolean;
+  status: StatusDia;
 }
 
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
@@ -37,7 +68,7 @@ const normalizeDate = (date: Date): Date => {
   return normalized;
 };
 
-const parseDate = (value: string | Date): Date | null => {
+const parseDate = (value: string | Date | null | undefined): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return normalizeDate(value);
 
@@ -49,7 +80,9 @@ const parseDate = (value: string | Date): Date | null => {
     const match = slice.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
       const [, year, month, day] = match;
-      return normalizeDate(new Date(Number(year), Number(month) - 1, Number(day)));
+      return normalizeDate(
+        new Date(Number(year), Number(month) - 1, Number(day))
+      );
     }
 
     const parsed = new Date(trimmed);
@@ -62,7 +95,10 @@ const parseDate = (value: string | Date): Date | null => {
 };
 
 const differenceInDays = (start: Date, end: Date): number => {
-  return Math.floor((normalizeDate(end).getTime() - normalizeDate(start).getTime()) / MILLISECONDS_IN_DAY);
+  return (
+    (normalizeDate(end).getTime() - normalizeDate(start).getTime()) /
+    MILLISECONDS_IN_DAY
+  ) | 0; // floor
 };
 
 const isSameDay = (a: Date, b: Date): boolean => {
@@ -82,23 +118,35 @@ const addMonths = (date: Date, amount: number): Date => {
   result.setDate(1);
   result.setMonth(result.getMonth() + amount);
 
-  const lastDayOfMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  const lastDayOfMonth = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0
+  ).getDate();
   result.setDate(Math.min(originalDay, lastDayOfMonth));
 
   return normalizeDate(result);
 };
 
-const occursOnIntervalDays = (startDate: Date, targetDate: Date, interval: number): boolean => {
+const occursOnIntervalDays = (
+  startDate: Date,
+  targetDate: Date,
+  interval: number
+): boolean => {
   if (targetDate < startDate) return false;
   const diff = differenceInDays(startDate, targetDate);
   return diff % interval === 0;
 };
 
-const occursOnIntervalMonths = (startDate: Date, targetDate: Date, monthsInterval: number): boolean => {
+const occursOnIntervalMonths = (
+  startDate: Date,
+  targetDate: Date,
+  monthsInterval: number
+): boolean => {
   if (targetDate < startDate) return false;
   let candidate = normalizeDate(startDate);
 
-  // Avoid infinite loops by stopping after 600 iterations (~50 years for monthly tasks).
+  // limite de ~50 anos (600 meses) pra não travar
   for (let i = 0; i < 600; i += monthsInterval) {
     if (candidate > targetDate) {
       return false;
@@ -114,7 +162,11 @@ const occursOnIntervalMonths = (startDate: Date, targetDate: Date, monthsInterva
   return false;
 };
 
-const nextOnMonthlyInterval = (startDate: Date, fromDate: Date, monthsInterval: number): Date | null => {
+const nextOnMonthlyInterval = (
+  startDate: Date,
+  fromDate: Date,
+  monthsInterval: number
+): Date | null => {
   let candidate = normalizeDate(startDate);
   const searchStart = fromDate > startDate ? fromDate : startDate;
 
@@ -127,19 +179,26 @@ const nextOnMonthlyInterval = (startDate: Date, fromDate: Date, monthsInterval: 
   return candidate >= searchStart ? candidate : null;
 };
 
-const nextOnDailyInterval = (startDate: Date, fromDate: Date, interval: number): Date | null => {
-  if (fromDate <= startDate) {
-    return startDate;
+const nextOnDailyInterval = (
+  startDate: Date,
+  fromDate: Date,
+  interval: number
+): Date | null => {
+  const from = normalizeDate(fromDate);
+  const start = normalizeDate(startDate);
+
+  if (from <= start) {
+    return start;
   }
 
-  const diff = differenceInDays(startDate, fromDate);
+  const diff = differenceInDays(start, from);
   const remainder = diff % interval;
 
   if (remainder === 0) {
-    return fromDate;
+    return from;
   }
 
-  return addDays(fromDate, interval - remainder);
+  return addDays(from, interval - remainder);
 };
 
 const findNextWeekday = (
@@ -149,10 +208,12 @@ const findNextWeekday = (
 ): Date | null => {
   let candidate = fromDate > startDate ? fromDate : startDate;
 
-  // search up to 14 days ahead to find next valid business day
+  // procura até 14 dias pra frente
   for (let i = 0; i < 14; i += 1) {
     const day = candidate.getDay();
-    const isValid = includeSaturday ? day >= 1 && day <= 6 : day >= 1 && day <= 5;
+    const isValid = includeSaturday
+      ? day >= 1 && day <= 6
+      : day >= 1 && day <= 5;
 
     if (candidate >= startDate && isValid) {
       return candidate;
@@ -164,8 +225,71 @@ const findNextWeekday = (
   return null;
 };
 
-export const isTaskDueToday = (task: TaskLike, referenceDate: Date = new Date()): boolean => {
-  const { frequency, startDate: startDateInput } = task;
+/**
+ * Regra especial:
+ * "A cada 5 anos para edifícios de até 10 anos de entrega,
+ *  A cada 3 anos para edifícios entre 11 a 30 anos de entrega,
+ *  A cada 1 ano para edifícios com mais de 30 anos de entrega"
+ */
+const occursOnBuildingRule = (
+  startDate: Date,
+  buildingDeliveryDate: Date,
+  targetDate: Date
+): boolean => {
+  let current = normalizeDate(startDate);
+  const target = normalizeDate(targetDate);
+  const entrega = normalizeDate(buildingDeliveryDate);
+
+  if (target < current) return false;
+
+  for (let i = 0; i < 100; i++) {
+    if (isSameDay(current, target)) return true;
+    if (current > target) return false;
+
+    const idade = current.getFullYear() - entrega.getFullYear();
+
+    let stepYears: number;
+    if (idade <= 10) stepYears = 5;
+    else if (idade <= 30) stepYears = 3;
+    else stepYears = 1;
+
+    current = addMonths(current, 12 * stepYears);
+  }
+
+  return false;
+};
+
+const nextOnBuildingRule = (
+  startDate: Date,
+  buildingDeliveryDate: Date,
+  fromDate: Date
+): Date | null => {
+  let current = normalizeDate(startDate);
+  const entrega = normalizeDate(buildingDeliveryDate);
+  const target = normalizeDate(fromDate > startDate ? fromDate : startDate);
+
+  // pula até passar do "fromDate"
+  for (let i = 0; i < 100; i++) {
+    if (current >= target) return current;
+
+    const idade = current.getFullYear() - entrega.getFullYear();
+
+    let stepYears: number;
+    if (idade <= 10) stepYears = 5;
+    else if (idade <= 30) stepYears = 3;
+    else stepYears = 1;
+
+    current = addMonths(current, 12 * stepYears);
+  }
+
+  return null;
+};
+
+export const isTaskDueToday = (
+  task: TaskLike,
+  referenceDate: Date = new Date()
+): boolean => {
+  const { frequency, startDate: startDateInput, buildingDeliveryDate } = task;
   const startDate = parseDate(startDateInput);
   const targetDate = normalizeDate(referenceDate);
 
@@ -176,18 +300,38 @@ export const isTaskDueToday = (task: TaskLike, referenceDate: Date = new Date())
   switch (frequency) {
     case "Não se repete":
       return isSameDay(startDate, targetDate);
+
     case "Todos os dias":
       return targetDate >= startDate;
+
     case "Em dias alternados":
-      return targetDate >= startDate && occursOnIntervalDays(startDate, targetDate, DAILY_INTERVALS[frequency]);
+      return (
+        targetDate >= startDate &&
+        occursOnIntervalDays(startDate, targetDate, DAILY_INTERVALS[frequency])
+      );
+
     case "Segunda a sexta": {
       const day = targetDate.getDay();
       return targetDate >= startDate && day >= 1 && day <= 5;
     }
+
     case "Segunda a sábado": {
       const day = targetDate.getDay();
       return targetDate >= startDate && day >= 1 && day <= 6;
     }
+
+    case "A cada 5 anos para edifícios de até 10 anos de entrega, A cada 3 anos para edifícios entre 11 a 30 anos de entrega, A cada 1 ano para edifícios com mais de 30 anos de entrega": {
+      if (!buildingDeliveryDate) return false;
+      const entrega = parseDate(buildingDeliveryDate);
+      if (!entrega) return false;
+      return occursOnBuildingRule(startDate, entrega, targetDate);
+    }
+
+    case "Conforme indicação dos fornecedores":
+    case "Não aplicável":
+      // não gera recorrência automática
+      return false;
+
     default:
       if (frequency in WEEKLY_INTERVALS) {
         const interval = WEEKLY_INTERVALS[frequency];
@@ -203,8 +347,11 @@ export const isTaskDueToday = (task: TaskLike, referenceDate: Date = new Date())
   return false;
 };
 
-export const getNextDueDate = (task: TaskLike, referenceDate: Date = new Date()): Date | null => {
-  const { frequency, startDate: startDateInput } = task;
+export const getNextDueDate = (
+  task: TaskLike,
+  referenceDate: Date = new Date()
+): Date | null => {
+  const { frequency, startDate: startDateInput, buildingDeliveryDate } = task;
   const startDate = parseDate(startDateInput);
   const targetDate = normalizeDate(referenceDate);
 
@@ -219,31 +366,66 @@ export const getNextDueDate = (task: TaskLike, referenceDate: Date = new Date())
   switch (frequency) {
     case "Não se repete":
       return startDate > targetDate ? startDate : null;
+
     case "Todos os dias":
-      return nextOnDailyInterval(startDate, addDays(targetDate, 1), DAILY_INTERVALS[frequency]);
+      return nextOnDailyInterval(
+        startDate,
+        addDays(targetDate, 1),
+        DAILY_INTERVALS[frequency]
+      );
+
     case "Em dias alternados":
-      return nextOnDailyInterval(startDate, targetDate, DAILY_INTERVALS[frequency]);
+      return nextOnDailyInterval(
+        startDate,
+        addDays(targetDate, 1),
+        DAILY_INTERVALS[frequency]
+      );
+
     case "Segunda a sexta":
       return findNextWeekday(startDate, addDays(targetDate, 1), false);
+
     case "Segunda a sábado":
       return findNextWeekday(startDate, addDays(targetDate, 1), true);
+
+    case "A cada 5 anos para edifícios de até 10 anos de entrega, A cada 3 anos para edifícios entre 11 a 30 anos de entrega, A cada 1 ano para edifícios com mais de 30 anos de entrega": {
+      if (!buildingDeliveryDate) return null;
+      const entrega = parseDate(buildingDeliveryDate);
+      if (!entrega) return null;
+      return nextOnBuildingRule(startDate, entrega, addDays(targetDate, 1));
+    }
+
+    case "Conforme indicação dos fornecedores":
+    case "Não aplicável":
+      // manual, não calcula automático
+      return null;
+
     default:
       if (frequency in WEEKLY_INTERVALS) {
         const interval = WEEKLY_INTERVALS[frequency];
-        const nextDate = nextOnDailyInterval(startDate, addDays(targetDate, 1), interval);
-        return nextDate;
+        return nextOnDailyInterval(
+          startDate,
+          addDays(targetDate, 1),
+          interval
+        );
       }
 
       if (frequency in MONTHLY_INTERVALS) {
         const interval = MONTHLY_INTERVALS[frequency];
-        return nextOnMonthlyInterval(startDate, addDays(targetDate, 1), interval);
+        return nextOnMonthlyInterval(
+          startDate,
+          addDays(targetDate, 1),
+          interval
+        );
       }
   }
 
   return null;
 };
 
-export const sortTasksByNextDueDate = (tasks: TaskLike[], referenceDate: Date = new Date()): TaskLike[] => {
+export const sortTasksByNextDueDate = (
+  tasks: TaskLike[],
+  referenceDate: Date = new Date()
+): TaskLike[] => {
   return [...tasks].sort((a, b) => {
     const nextA = getNextDueDate(a, referenceDate);
     const nextB = getNextDueDate(b, referenceDate);
@@ -254,4 +436,80 @@ export const sortTasksByNextDueDate = (tasks: TaskLike[], referenceDate: Date = 
 
     return nextA.getTime() - nextB.getTime();
   });
+};
+
+/**
+ * Status da tarefa em um dia (usando frequência + histórico)
+ */
+export const getStatusNoDia = (
+  task: TaskLike,
+  historico: HistoricoLike[],
+  referenceDate: Date = new Date()
+): StatusNoDia => {
+  const target = normalizeDate(referenceDate);
+
+  const esperado = isTaskDueToday(task, target);
+
+  const histHoje = historico.find((h) => {
+    const d = parseDate(h.dataReferencia);
+    return d && isSameDay(d, target);
+  });
+
+  if (!esperado) {
+    if (!histHoje) {
+      return {
+        esperadoHoje: false,
+        statusHoje: "NAO_ESPERADO",
+        historicoHoje: null,
+      };
+    }
+
+    return {
+      esperadoHoje: false,
+      statusHoje: histHoje.status,
+      historicoHoje: histHoje,
+    };
+  }
+
+  if (!histHoje) {
+    return {
+      esperadoHoje: true,
+      statusHoje: "SEM_REGISTRO",
+      historicoHoje: null,
+    };
+  }
+
+  return {
+    esperadoHoje: true,
+    statusHoje: histHoje.status,
+    historicoHoje: histHoje,
+  };
+};
+
+/**
+ * Calendário de ocorrências esperadas no intervalo [from, to]
+ * (só dias em que a frequência diz que deveria ter atividade)
+ */
+export const buildCalendar = (
+  task: TaskLike,
+  historico: HistoricoLike[],
+  from: Date,
+  to: Date
+): DiaCalendario[] => {
+  const inicio = normalizeDate(from);
+  const fim = normalizeDate(to);
+  const dias: DiaCalendario[] = [];
+
+  for (let d = new Date(inicio); d.getTime() <= fim.getTime(); d = addDays(d, 1)) {
+    const statusDia = getStatusNoDia(task, historico, d);
+    if (!statusDia.esperadoHoje) continue;
+
+    dias.push({
+      data: new Date(d),
+      esperado: statusDia.esperadoHoje,
+      status: statusDia.statusHoje,
+    });
+  }
+
+  return dias;
 };
