@@ -21,16 +21,68 @@ export default function EmpresasPage() {
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [email, setEmail] = useState("");
+
+  const [emailError, setEmailError] = useState("");      // <-- erro visual email
+  const [cnpjError, setCnpjError] = useState("");        // <-- erro visual CNPJ
+
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [submitting, setSubmitting] = useState(false); // controla loading do botão
   const [view, setView] = useState("form");
 
+  // ---------------------------
+  // Validação de email
+  // ---------------------------
+  const validateEmail = (value) => {
+    if (!value.includes("@") || !value.includes(".")) {
+      setEmailError("Digite um e-mail válido");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  // ---------------------------
+  // Máscara e validação de CNPJ
+  // ---------------------------
+  const formatCnpj = (value) => {
+    value = value.replace(/\D/g, "");
+
+    if (value.length > 14) value = value.slice(0, 14);
+
+    if (value.length <= 2) return value;
+    if (value.length <= 5) return `${value.slice(0, 2)}.${value.slice(2)}`;
+    if (value.length <= 8)
+      return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(5)}`;
+    if (value.length <= 12)
+      return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(
+        5,
+        8
+      )}/${value.slice(8)}`;
+
+    return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(
+      5,
+      8
+    )}/${value.slice(8, 12)}-${value.slice(12, 14)}`;
+  };
+
+  const validateCnpj = (value) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length > 0 && digits.length !== 14) {
+      setCnpjError("CNPJ incompleto");
+    } else {
+      setCnpjError("");
+    }
+  };
+
   const handleCreate = async (event) => {
     event.preventDefault();
     setError("");
     setResult(null);
+
+    // Se houver erros visuais, bloqueia submit
+    if (emailError || cnpjError) return;
+
     setSubmitting(true); // ativa loading
 
     try {
@@ -137,6 +189,7 @@ export default function EmpresasPage() {
               sx={{ maxWidth: 400 }}
             />
 
+            {/* EMAIL COM VALIDAÇÃO */}
             <TextField
               placeholder="E-mail da empresa"
               type="email"
@@ -144,18 +197,30 @@ export default function EmpresasPage() {
               fullWidth
               margin="normal"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                validateEmail(e.target.value);
+              }}
+              error={!!emailError}
+              helperText={emailError}
               required
               sx={{ maxWidth: 400 }}
             />
 
+            {/* CNPJ COM MÁSCARA */}
             <TextField
               placeholder="CNPJ (opcional)"
               variant="outlined"
               fullWidth
               margin="normal"
               value={cnpj}
-              onChange={(e) => setCnpj(e.target.value)}
+              onChange={(e) => {
+                const formatted = formatCnpj(e.target.value);
+                setCnpj(formatted);
+                validateCnpj(formatted);
+              }}
+              error={!!cnpjError}
+              helperText={cnpjError}
               sx={{ maxWidth: 400 }}
             />
 
@@ -168,7 +233,7 @@ export default function EmpresasPage() {
               </Typography>
             )}
 
-            {/* 🔥 Botão com loading */}
+            {/* Botão com loading */}
             <Button
               type="submit"
               variant="contained"
