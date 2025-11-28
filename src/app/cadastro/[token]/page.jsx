@@ -11,6 +11,7 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  CircularProgress, // spinner
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 
@@ -30,6 +31,9 @@ export default function RegisterWithTokenPage() {
   const [empresaName, setEmpresaName] = useState("");
   const [checkingToken, setCheckingToken] = useState(true);
 
+  // estado de loading para bloquear botão e inputs
+  const [loading, setLoading] = useState(false);
+
   const handleClickShowPassword = () => setShowPassword((v) => !v);
   const handleMouseDownPassword = (event) => event.preventDefault();
 
@@ -43,12 +47,16 @@ export default function RegisterWithTokenPage() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/empresas?token=${encodeURIComponent(token)}`, {
-          method: "GET",
-        });
+        const res = await fetch(
+          `/api/empresas?token=${encodeURIComponent(token)}`,
+          {
+            method: "GET",
+          }
+        );
 
         const data = await res.json();
-console.log("consultar empresa: ", res, data);
+        console.log("consultar empresa: ", res, data);
+
         if (!res.ok) {
           throw new Error(
             data?.error || "Empresa não encontrada para esse link."
@@ -68,13 +76,17 @@ console.log("consultar empresa: ", res, data);
   const handleRegister = async (event) => {
     event.preventDefault();
     setError("");
+    setLoading(true); // INÍCIO DO LOADING
 
     try {
-      const res = await fetch(`/api/register/${encodeURIComponent(token)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
+      const res = await fetch(
+        `/api/register/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        }
+      );
 
       const data = await res.json();
 
@@ -87,16 +99,19 @@ console.log("consultar empresa: ", res, data);
     } catch (err) {
       setError(err.message);
       console.error(err);
+    } finally {
+      setLoading(false); // FIM DO LOADING
     }
   };
 
   const handleReturnLogin = (event) => {
     event.preventDefault();
+    if (loading) return; // evita clicar enquanto está carregando
     setError("");
     router.push("/login");
   };
 
-  const formDisabled = !empresaName && !checkingToken; // se token inválido, trava form
+  const formDisabled = (!empresaName && !checkingToken) || loading; // trava se token inválido OU loading
 
   return (
     <Box
@@ -192,6 +207,7 @@ console.log("consultar empresa: ", res, data);
                   onClick={handleClickShowPassword}
                   onMouseDown={handleMouseDownPassword}
                   edge="end"
+                  disabled={formDisabled}
                 >
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
@@ -223,13 +239,19 @@ console.log("consultar empresa: ", res, data);
             "&:hover": { backgroundColor: "#333" },
           }}
         >
-          CADASTRAR
+          {loading ? (
+            <CircularProgress size={26} sx={{ color: "#fff" }} />
+          ) : (
+            "CADASTRAR"
+          )}
         </Button>
 
         <Divider sx={{ my: 2, width: "100%", maxWidth: 400 }}>OU</Divider>
+
         <Button
           variant="outlined"
           fullWidth
+          disabled={loading}
           sx={{
             maxWidth: 400,
             borderRadius: 2,

@@ -5,9 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 model Empresa {
@@ -26,16 +26,16 @@ model Empresa {
 }
 
 model User {
-  id           String       @id @default(uuid())
-  email        String       @unique @db.VarChar(255)
-  name         String?      @db.VarChar(120)
-  passwordHash String       @db.VarChar(255)
-  refreshToken String?      @db.Text
-  role         Role         @default(USER)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique @db.VarChar(255)
+  name         String?  @db.VarChar(120)
+  passwordHash String   @db.VarChar(255)
+  refreshToken String?  @db.Text
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   empresaId    String
-  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   // RELAÇÃO ADICIONADA: Permite ver quais execuções um usuário completou
   atividadesConcluidas AtividadeHistorico[]
@@ -96,31 +96,31 @@ enum HistoricoStatus {
 // --- MODELO ATUALIZADO ---
 // Esta tabela agora é o "MOLDE" da atividade (o que fazer e com que frequência)
 model Atividade {
-  id       String @id @default(uuid())
-  name     String @db.VarChar(120)
-  type     String @db.VarChar(80)
+  id       String  @id @default(uuid())
+  name     String  @db.VarChar(120)
+  type     String  @db.VarChar(80)
   quantity Int
-  model    String @db.VarChar(160)
-  location String @db.VarChar(120)
+  model    String  @db.VarChar(160)
+  location String  @db.VarChar(120)
   photoUrl String? @db.VarChar(255)
 
   // Prioridade padrão para este molde
   prioridade Prioridade @default(BAIXO)
 
   // Informações do molde
-  frequencia    String @default("Não se repete") @db.VarChar(100)
-  equipe        String @default("Equipe interna") @db.VarChar(100)
-  tipoAtividade String @default("Preventiva") @db.VarChar(100)
+  frequencia    String  @default("Não se repete") @db.VarChar(100)
+  equipe        String  @default("Equipe interna") @db.VarChar(100)
+  tipoAtividade String  @default("Preventiva") @db.VarChar(100)
   observacoes   String? @db.Text
 
   // Data de "âncora" ou início para o cálculo de recorrência
   expectedDate DateTime?
 
   // Extras do molde
-  tags           String[]     @default([])
-  budgetStatus   BudgetStatus @default(SEM_ORCAMENTO)
-  costEstimate   Decimal?     @db.Decimal(12, 2)
-  approvedBudget Decimal?     @db.Decimal(12, 2)
+  tags            String[]     @default([])
+  budgetStatus    BudgetStatus @default(SEM_ORCAMENTO)
+  costEstimate    Decimal?     @db.Decimal(12, 2)
+  approvedBudget  Decimal?     @db.Decimal(12, 2)
   appliedStandard String?      @db.VarChar(120)
 
   // Soft delete + auditoria
@@ -160,10 +160,8 @@ model AtividadeHistorico {
   // --- ÍNDICES OTIMIZADOS ---
   // Garante que só exista uma execução por dia para a mesma atividade
   @@unique([atividadeId, dataReferencia], map: "atividade_dataref_uk")
-  
   // Otimiza a busca por "tarefas pendentes de hoje" (consulta mais comum)
   @@index([dataReferencia, status])
-  
   // Otimiza a busca por "tarefas feitas por um usuário"
   @@index([userId])
 }
