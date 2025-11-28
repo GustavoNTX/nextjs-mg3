@@ -124,22 +124,26 @@ function PageInner() {
                 </Grid>
               ))
             ) : (
-              <Grid
-                sx={{ textAlign: "center", width: "100%,", mt: 8 }}
-                item
-                xs={12}
+              <Box
+                sx={{
+                  gridColumn: "1 / -1", // ocupa toda a largura da grid
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "50vh", // altura suficiente para centralizar
+                  textAlign: "center",
+                  mt: 4,
+                }}
               >
-                <Box textAlign="center" mt={8}>
-                  <Typography variant="h6" color="text.secondary">
-                    Nenhum condomínio encontrado
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary">
-                    Ajuste os filtros ou limpe a busca.
-                  </Typography>
-                </Box>
-              </Grid>
-            )}
-          </Box>
+                <Typography variant="h6" color="text.secondary">
+                  Nenhum condomínio encontrado
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Ajuste os filtros ou limpe a busca.
+                </Typography>
+              </Box>
+            )}          </Box>
         )}
       </Box>
 
