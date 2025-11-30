@@ -11,6 +11,7 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  CircularProgress, // ADICIONADO: loading visual
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import Link from "next/link";
@@ -26,12 +27,16 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
+  const [loading, setLoading] = useState(false); // ADICIONADO: controla carregamento
+
   const handleClickShowPassword = () => setShowPassword((v) => !v);
   const handleMouseDownPassword = (event) => event.preventDefault();
 
   const handleRegister = async (event) => {
     event.preventDefault();
     setError("");
+
+    setLoading(true); // ADICIONADO: inicia loading
 
     try {
       const res = await fetch("/api/register", {
@@ -51,6 +56,8 @@ export default function RegisterPage() {
     } catch (err) {
       setError(err.message);
       console.error(err);
+    } finally {
+      setLoading(false); // ADICIONADO: encerra loading
     }
   };
 
@@ -102,6 +109,7 @@ export default function RegisterPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          disabled={loading} // ADICIONADO
           sx={{ maxWidth: 400 }}
         />
 
@@ -114,6 +122,7 @@ export default function RegisterPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          disabled={loading} // ADICIONADO
           sx={{ maxWidth: 400 }}
         />
 
@@ -126,6 +135,7 @@ export default function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          disabled={loading} // ADICIONADO
           sx={{ maxWidth: 400 }}
           InputProps={{
             endAdornment: (
@@ -135,6 +145,7 @@ export default function RegisterPage() {
                   onClick={handleClickShowPassword}
                   onMouseDown={handleMouseDownPassword}
                   edge="end"
+                  disabled={loading} // ADICIONADO
                 >
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
@@ -153,6 +164,7 @@ export default function RegisterPage() {
           type="submit"
           variant="contained"
           fullWidth
+          disabled={loading} // ADICIONADO
           sx={{
             mt: 3,
             mb: 2,
@@ -165,10 +177,15 @@ export default function RegisterPage() {
             "&:hover": { backgroundColor: "#333" },
           }}
         >
-          CADASTRAR
+          {loading ? (
+            <CircularProgress size={26} color="inherit" /> // ADICIONADO: spinner
+          ) : (
+            "CADASTRAR"
+          )}
         </Button>
 
         <Divider sx={{ my: 2, width: "100%", maxWidth: 400 }}>OU</Divider>
+
         <Button
           variant="outlined"
           fullWidth
@@ -178,6 +195,7 @@ export default function RegisterPage() {
             padding: "10px 0",
           }}
           onClick={handleReturnLogin}
+          disabled={loading} // ADICIONADO
         >
           JÁ TENHO UMA CONTA
         </Button>

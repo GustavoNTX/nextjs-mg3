@@ -22,6 +22,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  // ESTADO LOCAL PARA BLOQUEAR O BOTÃO DE LOGIN
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const router = useRouter();
 
   // 3. Adicionar este useEffect para redirecionar se já estiver logado
@@ -41,16 +45,23 @@ export default function LoginPage() {
     event.preventDefault();
   };
 
+  // -------------------------
+  // FUNÇÃO DE LOGIN COM LOADING
+  // -------------------------
   const handleLogin = async () => {
     setError("");
+    setIsSubmitting(true); // ativa loading
 
     try {
       await login(email, password);
+
       // se chegou aqui, logou com sucesso
       router.push("/selecione-o-condominio");
     } catch (err) {
       setError(err.message);
       console.error(err);
+    } finally {
+      setIsSubmitting(false); // desativa loading
     }
   };
 
@@ -163,10 +174,11 @@ export default function LoginPage() {
           </Typography>
         )}
 
-        {/* Botão Entrar */}
+        {/* Botão Entrar COM LOADING */}
         <Button
           variant="contained"
           fullWidth
+          disabled={isSubmitting}
           sx={{
             mt: 3,
             mb: 1,
@@ -181,7 +193,7 @@ export default function LoginPage() {
           }}
           onClick={handleLogin}
         >
-          LOGAR
+          {isSubmitting ? "CARREGANDO..." : "LOGAR"}
         </Button>
 
         {/* Esqueci minha senha */}
