@@ -15,22 +15,75 @@ import {
   Alert,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CircularProgress from "@mui/material/CircularProgress";
 
 export default function EmpresasPage() {
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [email, setEmail] = useState("");
+
+  const [emailError, setEmailError] = useState("");      // <-- erro visual email
+  const [cnpjError, setCnpjError] = useState("");        // <-- erro visual CNPJ
+
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false); // controla loading do botão
   const [view, setView] = useState("form");
+
+  // ---------------------------
+  // Validação de email
+  // ---------------------------
+  const validateEmail = (value) => {
+    if (!value.includes("@") || !value.includes(".")) {
+      setEmailError("Digite um e-mail válido");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  // ---------------------------
+  // Máscara e validação de CNPJ
+  // ---------------------------
+  const formatCnpj = (value) => {
+    value = value.replace(/\D/g, "");
+
+    if (value.length > 14) value = value.slice(0, 14);
+
+    if (value.length <= 2) return value;
+    if (value.length <= 5) return `${value.slice(0, 2)}.${value.slice(2)}`;
+    if (value.length <= 8)
+      return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(5)}`;
+    if (value.length <= 12)
+      return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(
+        5,
+        8
+      )}/${value.slice(8)}`;
+
+    return `${value.slice(0, 2)}.${value.slice(2, 5)}.${value.slice(
+      5,
+      8
+    )}/${value.slice(8, 12)}-${value.slice(12, 14)}`;
+  };
+
+  const validateCnpj = (value) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length > 0 && digits.length !== 14) {
+      setCnpjError("CNPJ incompleto");
+    } else {
+      setCnpjError("");
+    }
+  };
 
   const handleCreate = async (event) => {
     event.preventDefault();
     setError("");
     setResult(null);
-    setSubmitting(true);
+
+    // Se houver erros visuais, bloqueia submit
+    if (emailError || cnpjError) return;
+
+    setSubmitting(true); // ativa loading
 
     try {
       const res = await fetch("/api/empresas", {
@@ -44,6 +97,7 @@ export default function EmpresasPage() {
       });
 
       let data = null;
+
       // tenta parsear JSON, mas sem quebrar se vier vazio no 500
       try {
         data = await res.json();
@@ -75,7 +129,7 @@ export default function EmpresasPage() {
       setView("form");
       console.error(err);
     } finally {
-      setSubmitting(false);
+      setSubmitting(false); // desativa loading
     }
   };
 
@@ -116,6 +170,7 @@ export default function EmpresasPage() {
         <Box mb={2}>
           <img src="/simple-logo.png" alt="Logo" style={{ width: 100 }} />
         </Box>
+
         {/* FORM - só aparece quando view === 'form' */}
         {view === "form" && (
           <>
@@ -134,6 +189,7 @@ export default function EmpresasPage() {
               sx={{ maxWidth: 400 }}
             />
 
+            {/* EMAIL COM VALIDAÇÃO */}
             <TextField
               placeholder="E-mail da empresa"
               type="email"
@@ -141,18 +197,30 @@ export default function EmpresasPage() {
               fullWidth
               margin="normal"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                validateEmail(e.target.value);
+              }}
+              error={!!emailError}
+              helperText={emailError}
               required
               sx={{ maxWidth: 400 }}
             />
 
+            {/* CNPJ COM MÁSCARA */}
             <TextField
               placeholder="CNPJ (opcional)"
               variant="outlined"
               fullWidth
               margin="normal"
               value={cnpj}
-              onChange={(e) => setCnpj(e.target.value)}
+              onChange={(e) => {
+                const formatted = formatCnpj(e.target.value);
+                setCnpj(formatted);
+                validateCnpj(formatted);
+              }}
+              error={!!cnpjError}
+              helperText={cnpjError}
               sx={{ maxWidth: 400 }}
             />
 
@@ -165,6 +233,7 @@ export default function EmpresasPage() {
               </Typography>
             )}
 
+            {/* Botão com loading */}
             <Button
               type="submit"
               variant="contained"
@@ -182,16 +251,32 @@ export default function EmpresasPage() {
                 "&:hover": { backgroundColor: "#333" },
               }}
             >
-              {submitting ? "CRIANDO..." : "CRIAR EMPRESA"}
+              {submitting ? (
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    justifyContent: "center",
+                  }}
+                >
+                  <CircularProgress size={20} color="inherit" />
+                  CRIANDO...
+                </Box>
+              ) : (
+                "CRIAR EMPRESA"
+              )}
             </Button>
           </>
         )}
-        {/* ERRO 500 - esconde o form e mostra isto */}
+
+        {/* ERRO 500 */}
         {view === "error" && (
           <Box sx={{ width: "100%", maxWidth: 400 }}>
             <Alert severity="error" sx={{ mb: 2 }}>
               {error || "Erro interno do servidor. Tente novamente mais tarde."}
             </Alert>
+
             <Button
               variant="contained"
               fullWidth
@@ -210,7 +295,7 @@ export default function EmpresasPage() {
           </Box>
         )}
 
-        {/* RESULTADO - só aparece quando view === 'result' */}
+        {/* RESULTADO */}
         {view === "result" && result && (
           <Box
             sx={{
@@ -226,10 +311,12 @@ export default function EmpresasPage() {
               Empresa criada
             </Typography>
 
+            {/* TOKEN */}
             <Box sx={{ mb: 1 }}>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 Token da empresa
               </Typography>
+
               <Box
                 sx={{
                   display: "flex",
@@ -267,6 +354,7 @@ export default function EmpresasPage() {
               </Box>
             </Box>
 
+            {/* LINK */}
             <Box sx={{ mb: 1 }}>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 Link de cadastro
@@ -317,6 +405,7 @@ export default function EmpresasPage() {
               >
                 Abrir página de cadastro
               </Button>
+
               <Button
                 variant="text"
                 size="small"
@@ -327,7 +416,7 @@ export default function EmpresasPage() {
                   setCnpj("");
                   setResult(null);
                   setError("");
-                  setView("form"); // volta pro formulário pra criar outra
+                  setView("form");
                 }}
               >
                 Criar outra
@@ -349,7 +438,7 @@ export default function EmpresasPage() {
         </Button>
       </Box>
 
-      {/* Lado direito: imagem (mesmo do cadastro) */}
+      {/* Lado direito: imagem */}
       <Box
         sx={{
           flex: 1,
