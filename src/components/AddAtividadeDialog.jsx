@@ -17,62 +17,45 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import BusinessIcon from "@mui/icons-material/Business";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import { FREQUENCIAS } from "@/utils/frequencias";
 
-// opcional: se quiser usar diretamente seu util
-// import { toApiStatus } from "@/utils/atividadeStatus";
-
-const FREQUENCIAS = [
-  "Não se repete",
-  "Todos os dias",
-  "Em dias alternados",
-  "Segunda a sexta",
-  "Segunda a sábado",
-  "A cada semana",
-  "A cada duas semanas",
-  "A cada mês",
-  "A cada dois meses",
-  "A cada três meses",
-  "A cada quatro meses",
-  "A cada cinco meses",
-  "A cada seis meses",
-  "A cada ano",
-  "A cada dois anos",
-  "A cada três anos",
-  "A cada cinco anos",
-  "A cada dez anos",
-];
-
-// --- helpers de normalização ---
-function uiBoolToApiStatusEnum(bool) {
-  return bool ? "EM_ANDAMENTO" : "PENDENTE";
-}
+// --- helpers de normalização / sanitização ---
 function normPrioridade(v) {
   return String(v || "")
     .toUpperCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, ""); // "MÉDIO" -> "MEDIO"
 }
+
+function formatYMD(value) {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
 function sanitizeActivityForApi(raw) {
   const body = {
-    id: raw.id, // ⚠️ se a API não aceitar id no body, remova esta linha.
+    id: raw.id, // se o backend não aceitar id no body, remova.
     name: raw.name?.trim(),
     type: raw.type?.trim(),
     quantity: Number(raw.quantity),
     model: raw.model?.trim(),
     location: raw.location?.trim(),
-    prioridade: normPrioridade(raw.prioridade), // ALTO | MEDIO | BAIXO | URGENTE
-    frequencia: raw.frequencia || null,
-    equipe: raw.equipe || null,
-    tipoAtividade: raw.tipoAtividade || null,
+    prioridade: normPrioridade(raw.prioridade), // ALTO | MEDIO | BAIXO
+    frequencia: raw.frequencia || "Não se repete",
+    equipe: raw.equipe || "Equipe interna",
+    tipoAtividade: raw.tipoAtividade || "Preventiva",
     observacoes: raw.observacoes || "",
-    status: uiBoolToApiStatusEnum(!!raw.uiStatus), // enum
-    condominioId: raw.condominioId, // só o ID
-    // photoUrl: deixe o back decidir; não enviaremos null sem necessidade
+    expectedDate: raw.expectedDate || null, // string YYYY-MM-DD (back converte pra Date)
+    condominioId: raw.condominioId,
+    // empresaId geralmente é anexado no onSave (lado da página)
   };
 
-  // remove undefined/null para evitar validadores chatos
   Object.keys(body).forEach((k) => {
-    if (body[k] === undefined || body[k] === null) delete body[k];
+    if (body[k] === undefined || body[k] === null || body[k] === "") {
+      delete body[k];
+    }
   });
 
   return body;
@@ -83,14 +66,12 @@ const StyledSelect = styled(Select)({
   "& .MuiSelect-select": { minHeight: 48, display: "flex", alignItems: "center" },
 });
 
-// Popper largo e acima de tudo
 const WidePopper = styled(Popper)({
   width: 500,
   maxWidth: "90vw",
   zIndex: 1300,
 });
 
-// manter <li> para acessibilidade e navegação por teclado
 const CondominioOption = styled("li")(({ theme }) => ({
   listStyle: "none",
   padding: "8px 12px",
@@ -134,11 +115,12 @@ export default function AddAtividadeDialog({
   // estado
   const [ui, setUi] = useState({
     condominio: null,
-    status: true,
+    status: true, // só UI, não vai mais pro backend
     prioridade: "BAIXO",
     frequencia: "Não se repete",
     equipe: "Equipe interna",
     tipoAtividade: "Preventiva",
+    expectedDate: "", // YYYY-MM-DD
     photo: null,
   });
   const [errors, setErrors] = useState({});
@@ -153,11 +135,6 @@ export default function AddAtividadeDialog({
         (condominios || []).find((c) => c.id === selectedCondominio.id)) || null;
 
     const d = initialData || {};
-    const statusBool =
-      d.status === true ||
-      d.status === 1 ||
-      String(d.status || "").toUpperCase() === "EM_ANDAMENTO" ||
-      String(d.status || "").toUpperCase() === "IN_PROGRESS";
 
     if (nameRef.current) nameRef.current.value = d.name || "";
     if (typeRef.current) typeRef.current.value = d.type || "";
@@ -169,11 +146,12 @@ export default function AddAtividadeDialog({
 
     setUi({
       condominio: d.condominio || defaultCondo,
-      status: statusBool,
+      status: true, // não integra mais com status de histórico aqui
       prioridade: normPrioridade(d.prioridade) || "BAIXO",
       frequencia: d.frequencia || "Não se repete",
       equipe: d.equipe || "Equipe interna",
       tipoAtividade: d.tipoAtividade || "Preventiva",
+      expectedDate: d.expectedDate ? formatYMD(d.expectedDate) : "",
       photo: null,
     });
     setErrors({});
@@ -207,6 +185,10 @@ export default function AddAtividadeDialog({
     setUi((p) => ({ ...p, photo: file }));
   };
 
+  const handleExpectedDate = (e) => {
+    setUi((p) => ({ ...p, expectedDate: e.target.value || "" }));
+  };
+
   const validate = useCallback(() => {
     const newErrors = {};
     const name = nameRef.current?.value?.trim();
@@ -237,9 +219,8 @@ export default function AddAtividadeDialog({
 
     const condominioId = ui.condominio?.id || selectedCondominio?.id;
 
-    // monta “raw” a partir dos refs/UI
     const raw = {
-      id: initialData?.id, // ⚠️ se a API não aceitar id no body, remova.
+      id: initialData?.id,
       name: nameRef.current?.value,
       type: typeRef.current?.value,
       quantity: qty,
@@ -250,20 +231,15 @@ export default function AddAtividadeDialog({
       equipe: ui.equipe,
       tipoAtividade: ui.tipoAtividade,
       observacoes: obsRef.current?.value || "",
-      uiStatus: ui.status, // boolean do switch
+      expectedDate: ui.expectedDate || null, // YYYY-MM-DD ou null
       condominioId,
     };
 
     const body = sanitizeActivityForApi(raw);
 
-    // Para criação, se preferir deixar o backend setar status inicial:
-    if (mode === "create") {
-      delete body.status;
-    }
-
     try {
       setSaving(true);
-      // mantém a assinatura atual do seu onSave
+      // onSave deve anexar empresaId e chamar a API /api/atividades ou /api/atividades/[id]
       await onSave(body, { mode });
       onClose();
     } catch (err) {
@@ -330,7 +306,7 @@ export default function AddAtividadeDialog({
           pb: 2,
         }}
       >
-        {mode === "edit" ? "Editar Ativo" : "Novo Ativo"}
+        {mode === "edit" ? "Editar Atividade" : "Nova Atividade"}
         <IconButton
           aria-label="Fechar"
           onClick={onClose}
@@ -346,7 +322,11 @@ export default function AddAtividadeDialog({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ p: { xs: 2, sm: 3 }, overflow: "visible" }} onKeyDown={onEnter}>
+      <DialogContent
+        dividers
+        sx={{ p: { xs: 2, sm: 3 }, overflow: "visible" }}
+        onKeyDown={onEnter}
+      >
         <Grid container spacing={3}>
           {/* Coluna esquerda */}
           <Grid item xs={12} md={6}>
@@ -386,7 +366,11 @@ export default function AddAtividadeDialog({
                     helperText={errors.quantity}
                     required
                     inputProps={{ min: 1 }}
-                    InputProps={{ endAdornment: <InputAdornment position="end">un.</InputAdornment> }}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">un.</InputAdornment>
+                      ),
+                    }}
                     InputLabelProps={{ shrink: true }}
                     sx={{ "& .MuiOutlinedInput-root": { height: 48 } }}
                   />
@@ -432,6 +416,7 @@ export default function AddAtividadeDialog({
                     </StyledSelect>
                   </FormControl>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Tipo de atividade</InputLabel>
@@ -448,6 +433,7 @@ export default function AddAtividadeDialog({
                     </StyledSelect>
                   </FormControl>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Frequência</InputLabel>
@@ -459,11 +445,26 @@ export default function AddAtividadeDialog({
                       {...selectMenuProps}
                     >
                       {FREQUENCIAS.map((opt) => (
-                        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        <MenuItem key={opt} value={opt}>
+                          {opt}
+                        </MenuItem>
                       ))}
                     </StyledSelect>
                   </FormControl>
                 </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Data inicial (âncora)"
+                    type="date"
+                    value={ui.expectedDate}
+                    onChange={handleExpectedDate}
+                    InputLabelProps={{ shrink: true }}
+                    helperText="Primeira data de referência para o cronograma"
+                  />
+                </Grid>
+
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Equipe</InputLabel>
@@ -506,9 +507,15 @@ export default function AddAtividadeDialog({
                       renderOption={(props, option) => (
                         <CondominioOption {...props}>
                           <Box>
-                            <Typography variant="body1" fontWeight={600}>{option?.name}</Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {option?.name}
+                            </Typography>
                             {option?.endereco && (
-                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ mt: 0.5 }}
+                              >
                                 {option.endereco}
                               </Typography>
                             )}
@@ -521,9 +528,16 @@ export default function AddAtividadeDialog({
                           label="Condomínio"
                           placeholder="Digite para buscar condomínios..."
                           error={!!errors.condominio}
-                          helperText={errors.condominio || "Selecione um condomínio da lista"}
+                          helperText={
+                            errors.condominio || "Selecione um condomínio da lista"
+                          }
                           InputLabelProps={{ shrink: true }}
-                          sx={{ "& .MuiOutlinedInput-root": { height: 48, alignItems: "center" } }}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              height: 48,
+                              alignItems: "center",
+                            },
+                          }}
                         />
                       )}
                     />
@@ -577,9 +591,9 @@ export default function AddAtividadeDialog({
                       }
                       label={
                         <Box>
-                          <Typography variant="user-body2">Em andamento</Typography>
+                          <Typography variant="body2">Em andamento</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            Ativar/desativar ativo
+                            Apenas visual (não altera histórico)
                           </Typography>
                         </Box>
                       }
@@ -593,12 +607,19 @@ export default function AddAtividadeDialog({
                     spacing={1}
                     alignItems={{ xs: "stretch", sm: "center" }}
                   >
-                    <Button variant="outlined" startIcon={<AttachFileIcon />} component="label">
+                    <Button
+                      variant="outlined"
+                      startIcon={<AttachFileIcon />}
+                      component="label"
+                    >
                       Adicionar foto
                       <input type="file" hidden accept="image/*" onChange={handleFile} />
                     </Button>
                     {ui.photo && (
-                      <Button size="small" onClick={() => setUi((p) => ({ ...p, photo: null }))}>
+                      <Button
+                        size="small"
+                        onClick={() => setUi((p) => ({ ...p, photo: null }))}
+                      >
                         Remover
                       </Button>
                     )}

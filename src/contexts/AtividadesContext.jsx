@@ -11,7 +11,7 @@ import React, {
   useEffect,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { TZ, startOfDayFortaleza, inferStatus } from "@/utils/atividadeStatus";
+import { getStatusNoDia } from "@/utils/atividadeStatus";
 
 const AtividadesContext = createContext(null);
 
@@ -35,7 +35,6 @@ export function AtividadesProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState(null);
-  // <<< 1. ADICIONAR O NOVO ESTADO AQUI
   const [totalAtividadesNosCondominios, setTotalAtividadesNosCondominios] =
     useState(0);
 
@@ -152,8 +151,7 @@ export function AtividadesProvider({ children }) {
           setLoading(true);
           setItems([]);
           setNextCursor(null);
-          // <<< 2. RESETAR O TOTAL AQUI TAMBÉM
-          setTotalAtividadesNosCondominios(0); 
+          setTotalAtividadesNosCondominios(0);
           if (finalCondo !== condominioIdRef.current)
             setCondominioId(finalCondo);
           if (finalEmpresa !== empresaIdRef.current) setEmpresaId(finalEmpresa);
@@ -172,7 +170,6 @@ export function AtividadesProvider({ children }) {
         setItems((old) => (reset ? json.items : [...old, ...json.items]));
         setNextCursor(json.nextCursor ?? null);
 
-        // <<< 2. ATUALIZAR O ESTADO COM O VALOR DA API (APENAS NO RESET)
         if (reset) {
           setTotalAtividadesNosCondominios(
             Number.isFinite(json.totalAtividadesNosCondominios)
@@ -308,14 +305,13 @@ export function AtividadesProvider({ children }) {
         return [created, ...old];
       });
 
-      // <<< 2. ATUALIZAR TOTAL AO CRIAR (OPCIONAL, MAS RECOMENDADO)
       // Se a atividade criada bate com os filtros, incrementa o total
       const f = filtersRef.current;
       const okCondo = created.condominioId === condominioIdRef.current;
       const okStatus = !f?.status || created.status === f.status;
       const okPri = !f?.prioridade || created.prioridade === f.prioridade;
       if (okCondo && okStatus && okPri) {
-         setTotalAtividadesNosCondominios((t) => t + 1);
+        setTotalAtividadesNosCondominios((t) => t + 1);
       }
 
       // refresh notificações
@@ -397,10 +393,9 @@ export function AtividadesProvider({ children }) {
       setItems((old) => old.filter((it) => it.id !== id));
       setEmpresaItems((old) => old.filter((it) => it.id !== id));
 
-      // <<< 2. ATUALIZAR TOTAL AO DELETAR (OPCIONAL, MAS RECOMENDADO)
       // Apenas decrementa se o item removido estava na lista (items)
       if (existing) {
-         setTotalAtividadesNosCondominios((t) => (t > 0 ? t - 1 : 0));
+        setTotalAtividadesNosCondominios((t) => (t > 0 ? t - 1 : 0));
       }
 
       // refresh notificações
@@ -497,7 +492,7 @@ export function AtividadesProvider({ children }) {
     let tm;
     const arm = () => {
       const now = new Date(
-        new Date().toLocaleString("en-US", { timeZone: TZ })
+        new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
       );
       const next = new Date(now);
       next.setHours(24, 0, 0, 0);
@@ -513,6 +508,80 @@ export function AtividadesProvider({ children }) {
     };
   }, [loadNotifications]);
 
+  // Status centralizado por atividade usando frequência + histórico
+  // Saída: "PROXIMAS" | "EM_ANDAMENTO" | "PENDENTE" | "HISTORICO"
+  const inferStatus = (it) => {
+    try {
+      // data de referência = hoje em Fortaleza, mas como Date simples
+      const hojeISO = todayISOFortaleza(); // "YYYY-MM-DD"
+      const hoje = new Date(hojeISO);
+
+      // TaskLike que o helper espera
+      const task = {
+        id: it.id,
+        name: it.name,
+        // no molde o campo é "frequencia"
+        frequency: it.frequencia || it.frequency || "Não se repete",
+        // âncora: expectedDate, senão createdAt
+        startDate:
+          (it.expectedDate instanceof Date
+            ? it.expectedDate.toISOString()
+            : it.expectedDate) ||
+          (it.createdAt instanceof Date
+            ? it.createdAt.toISOString()
+            : it.createdAt) ||
+          hoje.toISOString(),
+        // se em algum momento você tiver data de entrega do condomínio aqui,
+        // dá pra passar como buildingDeliveryDate também
+        // buildingDeliveryDate: it.condominio?.dataEntrega?.toISOString(),
+      };
+
+      // HistoricoLike[]
+      const historico = Array.isArray(it.historico)
+        ? it.historico.map((h) => ({
+            atividadeId: it.id,
+            dataReferencia:
+              h.dataReferencia instanceof Date
+                ? h.dataReferencia.toISOString()
+                : h.dataReferencia,
+            status: h.status,
+            completedAt:
+              h.completedAt instanceof Date
+                ? h.completedAt.toISOString()
+                : h.completedAt ?? null,
+            observacoes: h.observacoes ?? null,
+          }))
+        : [];
+
+      const statusDia = getStatusNoDia(task, historico, hoje);
+
+      // Mapeia para os buckets usados no dashboard
+      // PROXIMAS: não é esperado hoje e ainda não foi feito em nenhum dia
+      // HISTORICO: já foi FEITO (ou hoje, ou em algum dia anterior)
+      // EM_ANDAMENTO: esperado hoje + EM_ANDAMENTO
+      // PENDENTE: esperado hoje mas não feito (PENDENTE / SEM_REGISTRO / etc)
+
+      if (!statusDia.esperadoHoje) {
+        // se já existe algum FEITO no histórico => já virou histórico
+        if (historico.some((h) => h.status === "FEITO")) return "HISTORICO";
+        return "PROXIMAS";
+      }
+
+      switch (statusDia.statusHoje) {
+        case "FEITO":
+          return "HISTORICO";
+        case "EM_ANDAMENTO":
+          return "EM_ANDAMENTO";
+        default:
+          // PENDENTE, SEM_REGISTRO, ATRASADO, etc caem aqui
+          return "PENDENTE";
+      }
+    } catch (e) {
+      // fallback conservador
+      return "PENDENTE";
+    }
+  };
+
   // stats centralizados via inferStatus
   const stats = useMemo(() => {
     const out = {
@@ -520,10 +589,9 @@ export function AtividadesProvider({ children }) {
       EM_ANDAMENTO: 0,
       PENDENTE: 0,
       HISTORICO: 0,
-      total: items.length, // Este 'total' é apenas dos items carregados (paginados)
+      total: items.length,
     };
     for (const it of items) out[inferStatus(it)]++;
-    // compat
     return { ...out, emAndamento: out.EM_ANDAMENTO, pendentes: out.PENDENTE };
   }, [items]);
 
@@ -552,7 +620,6 @@ export function AtividadesProvider({ children }) {
       condominioId,
       filters,
       stats,
-      // <<< 3. EXPOR O NOVO ESTADO AQUI
       totalAtividadesNosCondominios,
 
       // listagem
@@ -592,7 +659,6 @@ export function AtividadesProvider({ children }) {
       condominioId,
       filters,
       stats,
-      // <<< 3. ADICIONAR NO ARRAY DE DEPENDÊNCIAS
       totalAtividadesNosCondominios,
       load,
       loadMore,

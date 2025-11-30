@@ -20,7 +20,7 @@ import {
 // Dados existentes no projeto
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate"; // tarefas padronizadas
-import { isTaskDueToday, getNextDueDate } from "@/utils/dateLogic"; // recorrência
+import { isTaskDueToday, getNextDueDate } from "@/utils/dateLogic";
 import {
   inferStatus,
   statusLabel,
