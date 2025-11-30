@@ -126,12 +126,12 @@ function PageInner() {
             ) : (
               <Box
                 sx={{
-                  gridColumn: "1 / -1", // ocupa toda a largura da grid
+                  gridColumn: "1 / -1",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  height: "50vh", // altura suficiente para centralizar
+                  height: "50vh",
                   textAlign: "center",
                   mt: 4,
                 }}
