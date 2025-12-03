@@ -24,6 +24,21 @@ const normalizeFilters = (value) => ({
   prioridade: value?.prioridade ?? null,
   status: value?.status ?? null,
 });
+const startOfDayBrasilia = () => {
+  // pega "agora" em Brasília
+  const nowInBrasilia = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  );
+
+  // força pra 00:00:00.000 no fuso de Brasília
+  nowInBrasilia.setHours(0, 0, 0, 0);
+
+  return nowInBrasilia;
+};
+
+const todayISOBrasilia = () =>
+  startOfDayBrasilia().toISOString().slice(0, 10); // "YYYY-MM-DD"
+
 
 const todayISOFortaleza = () =>
   startOfDayFortaleza().toISOString().slice(0, 10);
@@ -444,15 +459,18 @@ export function AtividadesProvider({ children }) {
       setNotifError(null);
       setNotifLoading(true);
       try {
+console.log("validandod notificacao -2:", leadDays)
         const emp = empresaIdRef.current ?? (await resolveEmpresaId());
         const params = new URLSearchParams({
           empresaId: emp,
           leadDays: String(Number(leadDays) || 0),
         });
+console.log("validandod notificacao -1:", leadDays)
         const res = await fetchWithAuth(
           `/api/atividades/notifications?${params.toString()}`,
           { cache: "no-store" }
         );
+console.log("validandod notificacao 0:", leadDays)
         if (!res.ok) throw new Error("Falha ao carregar notificações");
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.items ?? [];
@@ -461,16 +479,17 @@ export function AtividadesProvider({ children }) {
         const scope = `${user?.id || "anon"}:${emp}:${
           condominioIdRef.current || "-"
         }`;
+console.log("validandod notificacao 1:", leadDays)
         const map = readDismissMap();
         const dismissed = map[scope] || {};
-        const todayISO = todayISOFortaleza();
-
+        const todayISO = todayISOBrasilia();
+console.log("validandod notificacao 2:", map, dismissed, todayISO)
         const filtered = arr.filter((n) => {
           const k = `${n.atividadeId}|${n.when}|${n.dueDateISO}`;
           const until = dismissed[k];
           return !until || String(until) < todayISO;
         });
-
+console.log("validandod notificacao 3:", filtered)
         setNotifications(filtered);
       } catch (e) {
         setNotifications([]);
