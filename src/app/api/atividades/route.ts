@@ -48,7 +48,7 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
           if (u?.empresaId) return u.empresaId;
         }
       }
-    } catch {}
+    } catch { }
   }
   return null;
 }
@@ -220,14 +220,14 @@ export async function GET(req: NextRequest) {
     // Filtro textual
     const textWhere = q
       ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { model: { contains: q, mode: "insensitive" } },
-            { type: { contains: q, mode: "insensitive" } },
-            { location: { contains: q, mode: "insensitive" } },
-            { tags: { has: q } },
-          ],
-        }
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { model: { contains: q, mode: "insensitive" } },
+          { type: { contains: q, mode: "insensitive" } },
+          { location: { contains: q, mode: "insensitive" } },
+          { tags: { has: q } },
+        ],
+      }
       : {};
 
     // WHERE para a listagem (filtrado)
@@ -275,8 +275,8 @@ export async function GET(req: NextRequest) {
 
     const totalAtividadesCondominioPromise = condominioId
       ? prisma.atividade.count({
-          where: { empresaId: authEmpresaId, condominioId, deletedAt: null },
-        })
+        where: { empresaId: authEmpresaId, condominioId, deletedAt: null },
+      })
       : Promise.resolve(null);
 
     const [items, total, totalAtividadesNosCondominios] = await Promise.all([
@@ -294,9 +294,9 @@ export async function GET(req: NextRequest) {
       total, // total filtrado (respeita q/prioridade/status/intervalo)
       ...(condominioId
         ? {
-            totalAtividadesNosCondominios, // nome canônico
-            totalAtividadeCondominhos: totalAtividadesNosCondominios, // alias solicitado
-          }
+          totalAtividadesNosCondominios, // nome canônico
+          totalAtividadeCondominhos: totalAtividadesNosCondominios, // alias solicitado
+        }
         : {}),
     });
   } catch (e: any) {
@@ -366,7 +366,7 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data;
 
-     ensureEmpresaOptionalMatch(authEmpresaId, data.empresaId);
+    ensureEmpresaOptionalMatch(authEmpresaId, data.empresaId);
     await assertCondominioDaEmpresa(data.condominioId, authEmpresaId);
 
     const prioridadeEnum = toPrioridadeEnum(data.prioridade ?? undefined);
@@ -396,6 +396,34 @@ export async function POST(req: NextRequest) {
       },
       include: { condominio: { select: { id: true, name: true } } },
     });
+
+    // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    let dataRef = hoje;
+
+    if (created.expectedDate) {
+      const d = new Date(created.expectedDate);
+      d.setHours(0, 0, 0, 0);
+      dataRef = d;
+    }
+
+    let status: "PENDENTE" | "ATRASADO" | "FEITO" | "PULADO" = "PENDENTE";
+
+    if (dataRef < hoje) {
+      status = "ATRASADO";
+    }
+
+    await prisma.atividadeHistorico.create({
+      data: {
+        atividadeId: created.id,
+        dataReferencia: dataRef,
+        status,
+      },
+    });
+
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
