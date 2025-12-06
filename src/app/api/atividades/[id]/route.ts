@@ -7,6 +7,7 @@ import { z } from "zod";
 import { FREQUENCIAS } from "@/utils/frequencias";
 import type { Frequencia } from "@/utils/frequencias";
 import { agendarProximaExecucaoSeFeito } from "@/services/atividade";
+import { HistoricoStatus } from "@prisma/client";
 
 import {
   TaskLike,
@@ -281,14 +282,12 @@ export async function GET(
 }
 
 /** ---------- PATCH ---------- */
-const HIST_SET = new Set(["PENDENTE", "FEITO", "PULADO", "ATRASADO"]);
+const HIST_SET = new Set(["PENDENTE", "ATRASADO", "EM_ANDAMENTO", "PROXIMAS", "FEITO", "PULADO",]);
 
 function toHistoricoStatus(input: unknown) {
   if (typeof input !== "string") return undefined;
   const s = input.trim().toUpperCase();
-  return HIST_SET.has(s)
-    ? (s as "PENDENTE" | "FEITO" | "PULADO" | "ATRASADO")
-    : undefined;
+  return HIST_SET.has(s) ? (s as HistoricoStatus) : undefined;
 }
 
 const patchSchema = z
@@ -360,9 +359,8 @@ export async function PATCH(
     // ---------- HISTÓRICO ----------
     const histStatus = toHistoricoStatus(b.status);
     if (b.dataReferencia || histStatus || b.completedAt) {
-      const dataRef = (b.dataReferencia
-        ? new Date(b.dataReferencia)
-        : new Date()) as Date;
+      const dataRef = new Date(b.dataReferencia ?? new Date());
+      dataRef.setHours(0, 0, 0, 0);
 
       const hist = await prisma.atividadeHistorico.upsert({
         where: {

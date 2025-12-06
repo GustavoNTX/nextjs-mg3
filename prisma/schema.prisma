@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+ // directUrl = env("DIRECT_URL")
 }
 
 model Empresa {
@@ -85,13 +85,15 @@ enum BudgetStatus {
   REPROVADO
 }
 
-// ENUM: Para o status da execução
 enum HistoricoStatus {
   PENDENTE
+  ATRASADO
+  EM_ANDAMENTO
+  PROXIMAS
   FEITO
   PULADO
-  ATRASADO
 }
+
 
 // --- MODELO ATUALIZADO ---
 // Esta tabela agora é o "MOLDE" da atividade (o que fazer e com que frequência)
