@@ -3,21 +3,13 @@
 
 import { Box, Typography, Button, Grid, Stack } from "@mui/material";
 import { Add as AddIcon, GetApp as GetAppIcon } from "@mui/icons-material";
-import Layout from "@/components/Layout";
 import AddCondominioDialog from "@/components/AddCondominioDialog";
 import CondominioCard from "@/components/CondominioCard";
 import EditCondominioDialog from "@/components/EditCondominioDialog";
-import {
-  CondominiosProvider,
-  useCondominios,
-} from "@/contexts/CondominiosContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { useCondominios } from "@/contexts/CondominiosContext";
 import Image from "next/image";
 import { useState, useMemo } from "react";
-import {
-  CondominoUIProvider,
-  useCondominoUI,
-} from "@/contexts/CondominoUIContext";
+import { useCondominoUI } from "@/contexts/CondominoUIContext";
 
 function PageInner() {
   const {
@@ -43,9 +35,11 @@ function PageInner() {
     await create(data);
     setAddDialogOpen(false);
   };
+
   const handleSaveEdit = async (updatedData) => {
     await update(updatedData.id, updatedData);
   };
+
   const handleDelete = async (condoId) => {
     await remove(condoId);
     setEditDialogOpen(false);
@@ -143,7 +137,8 @@ function PageInner() {
                   Ajuste os filtros ou limpe a busca.
                 </Typography>
               </Box>
-            )}          </Box>
+            )}
+          </Box>
         )}
       </Box>
 
@@ -166,16 +161,5 @@ function PageInner() {
 }
 
 export default function SelecioneOCondominioPage() {
-  return (
-    <ProtectedRoute>
-      {/* Provider precisa ficar ACIMA do Layout para o Header enxergar o contexto */}
-      <CondominoUIProvider>
-        <Layout>
-          <CondominiosProvider>
-            <PageInner />
-          </CondominiosProvider>
-        </Layout>
-      </CondominoUIProvider>
-    </ProtectedRoute>
-  );
+  return <PageInner />;
 }

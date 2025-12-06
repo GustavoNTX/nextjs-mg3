@@ -3,7 +3,6 @@
 // 'useMemo' foi removido dos imports do React
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Layout from "@/components/Layout";
 import {
   Box,
   Tabs,
@@ -45,7 +44,6 @@ const normalizeStatus = (s) => {
   return false; // default seguro
 };
 
-// >>> Ajuste conforme seu backend espera receber o status <<<
 const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
 const encodeStatus = (bool) =>
   BACKEND_STATUS_MODE === "enum"
@@ -57,7 +55,6 @@ const encodeStatus = (bool) =>
 function HeaderResumo() {
   const { selected } = useCondominoUI();
   const {
-    // <<< CORREÇÃO: 'items' removido, não é mais usado aqui
     stats,
     loading,
     totalAtividadesNosCondominios,
@@ -65,12 +62,10 @@ function HeaderResumo() {
 
   console.log(useAtividades());
 
-  // <<< CORREÇÃO: O bloco 'safe = useMemo(...)' foi removido
   // Ele estava calculando os stats de forma errada.
 
   const total = totalAtividadesNosCondominios;
   
-  // <<< CORREÇÃO: Usar 'stats' diretamente, com fallback para 0.
   // 'stats' já é calculado no AtividadesContext usando a lógica correta (inferStatus)
   const funcionando = stats?.emAndamento ?? 0;
   const pendentes = stats?.pendentes ?? 0;
