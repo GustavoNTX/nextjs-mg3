@@ -259,15 +259,5 @@ function CronogramaInner() {
 }
 
 export default function CronogramaPage() {
-  return (
-    <CondominoUIProvider>
-      <Layout>
-        <CondominiosProvider>
-          <AtividadesProvider>
-            <CronogramaInner />
-          </AtividadesProvider>
-        </CondominiosProvider>
-      </Layout>
-    </CondominoUIProvider>
-  );
+  return <CronogramaInner />;
 }
