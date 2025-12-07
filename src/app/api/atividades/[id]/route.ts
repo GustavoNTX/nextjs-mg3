@@ -140,7 +140,7 @@ function toFrequenciaEnum(input?: string | null): Frequencia | undefined {
 /** ---------- GET ---------- */
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> },
+  ctx: { params: { id: string } },
 ) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();

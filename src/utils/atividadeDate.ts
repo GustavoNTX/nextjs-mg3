@@ -1,4 +1,4 @@
-import { TaskLike } from "./dateLogic";
+import { TaskLike } from "./atividadeStatus";
 
 type DateInput = string | Date | null | undefined;
 
