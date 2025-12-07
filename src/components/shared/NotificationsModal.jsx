@@ -79,7 +79,6 @@ export default function NotificationsModal({ open, onClose }) {
     // console.log("notifications:", notifications)
     [notifications, todayISO]
   );
-  console.log("notifications 2:", notifications);
   const feitasHoje = useMemo(
     () =>
       dueToday.filter(

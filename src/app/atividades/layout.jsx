@@ -1,5 +1,6 @@
 "use client";
 
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { CondominoUIProvider } from "@/contexts/CondominoUIContext";
 import { CondominiosProvider } from "@/contexts/CondominiosContext";
 import { AtividadesProvider } from "@/contexts/AtividadesContext";
