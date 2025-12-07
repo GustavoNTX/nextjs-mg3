@@ -56,7 +56,6 @@ export default function NotificationsModal({ open, onClose }) {
   const today = useMemo(() => new Date(), [open]);
 
   useEffect(() => {
-
     if (!open || !loadNotifications) return;
     // só hoje
     loadNotifications({ leadDays: 0 });
@@ -75,13 +74,12 @@ export default function NotificationsModal({ open, onClose }) {
     () =>
       notifications.filter(
         (n) => n.when === "due" && n.dueDateISO === todayISO
-      )
-    
+      ),
+
     // console.log("notifications:", notifications)
-    ,
     [notifications, todayISO]
   );
-console.log("notifications 2:", notifications)
+  console.log("notifications 2:", notifications);
   const feitasHoje = useMemo(
     () =>
       dueToday.filter(
@@ -181,43 +179,6 @@ console.log("notifications 2:", notifications)
               </Typography>
             )}
 
-            {/* Feitas hoje */}
-            <Box>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                sx={{ mb: 1 }}
-              >
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Feitas hoje
-                </Typography>
-                <Chip
-                  size="small"
-                  label={feitasHoje.length}
-                  color={feitasHoje.length ? "success" : "default"}
-                  variant={feitasHoje.length ? "filled" : "outlined"}
-                />
-              </Stack>
-              <List
-                sx={{
-                  bgcolor: theme.palette.background.default,
-                  borderRadius: 2,
-                  p: 1,
-                }}
-              >
-                {feitasHoje.length ? (
-                  feitasHoje.map((n) => renderItem(n, true))
-                ) : (
-                  <ListItem>
-                    <ListItemText primary="Nada concluído ainda hoje." />
-                  </ListItem>
-                )}
-              </List>
-            </Box>
-
-            <Divider />
-
             {/* Não feitas hoje */}
             <Box>
               <Stack
@@ -248,6 +209,41 @@ console.log("notifications 2:", notifications)
                 ) : (
                   <ListItem>
                     <ListItemText primary="Sem pendências para hoje." />
+                  </ListItem>
+                )}
+              </List>
+            </Box>
+            <Divider />
+            {/* Feitas hoje */}
+            <Box>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ mb: 1 }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Feitas hoje
+                </Typography>
+                <Chip
+                  size="small"
+                  label={feitasHoje.length}
+                  color={feitasHoje.length ? "success" : "default"}
+                  variant={feitasHoje.length ? "filled" : "outlined"}
+                />
+              </Stack>
+              <List
+                sx={{
+                  bgcolor: theme.palette.background.default,
+                  borderRadius: 2,
+                  p: 1,
+                }}
+              >
+                {feitasHoje.length ? (
+                  feitasHoje.map((n) => renderItem(n, true))
+                ) : (
+                  <ListItem>
+                    <ListItemText primary="Nada concluído ainda hoje." />
                   </ListItem>
                 )}
               </List>
