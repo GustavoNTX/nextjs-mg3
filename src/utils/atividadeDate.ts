@@ -66,6 +66,54 @@ const resolveStartDate = (atividade: AtividadeLike): string | null => {
   return toDateString(anchor);
 };
 
+const normalizeFrequency = (raw?: string | null): string => {
+  const s = (raw ?? "").trim();
+  if (!s) return "Não se repete";
+
+  const canonicals = new Set([
+    "Não se repete",
+    "Todos os dias",
+    "Em dias alternados",
+    "Segunda a sexta",
+    "Segunda a sábado",
+    "A cada semana",
+    "A cada 15 dias",
+    "A cada 1 mês",
+    "A cada 2 meses",
+    "A cada 3 meses",
+    "A cada 4 meses",
+    "A cada 5 meses",
+    "A cada 6 meses",
+    "A cada 1 ano",
+    "A cada 2 anos",
+    "A cada 3 anos",
+    "A cada 5 anos",
+    "A cada 10 anos",
+    "Conforme indicação dos fornecedores",
+    "Não aplicável",
+  ]);
+  if (canonicals.has(s)) return s;
+
+  const base = s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (base === "diaria") return "Todos os dias";
+  if (base === "semanal") return "A cada semana";
+  if (base === "quinzenal") return "A cada 15 dias";
+  if (base === "mensal" || base === "a cada mes") return "A cada 1 mês";
+  if (base === "trimestral") return "A cada 3 meses";
+  if (base === "semestral") return "A cada 6 meses";
+  if (base === "anual") return "A cada 1 ano";
+
+  if (base === "uma vez" || base === "sob demanda") {
+    return "Não se repete";
+  }
+
+  return "Não se repete";
+};
+
 export const adaptAtividadeToTask = (atividade: AtividadeLike): AdaptedTask | null => {
   const startDate = resolveStartDate(atividade);
   if (!startDate) return null;
@@ -73,7 +121,7 @@ export const adaptAtividadeToTask = (atividade: AtividadeLike): AdaptedTask | nu
   return {
     id: atividade.id,
     name: atividade.name,
-    frequency: atividade.frequencia ?? "Não se repete",
+    frequency: normalizeFrequency(atividade.frequencia),
     startDate,
     condominioName: atividade?.condominio?.name ?? null,
     raw: atividade,
