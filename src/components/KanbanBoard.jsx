@@ -1,7 +1,7 @@
 // src/components/KanbanBoard.jsx
 "use client";
 
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useMemo, useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -427,6 +427,13 @@ export default function KanbanBoard({ onEdit }) {
   const { items, loading, error, nextCursor, loadMore, updateAtividade } =
     useAtividades();
 
+  // carrega TODAS as páginas automaticamente
+  useEffect(() => {
+    if (!loading && nextCursor) {
+      loadMore();
+    }
+  }, [loading, nextCursor, loadMore]);
+
   // colunas fixas por CODE
   const columns = useMemo(
     () => [
@@ -435,7 +442,7 @@ export default function KanbanBoard({ onEdit }) {
       { code: "PENDENTE" },
       { code: "HISTORICO" },
     ],
-    [],
+    []
   );
 
   /* ---------- FILTROS (Status + Período) ---------- */
@@ -475,7 +482,7 @@ export default function KanbanBoard({ onEdit }) {
 
       return true;
     },
-    [filters.statuses, filters.start, filters.end],
+    [filters.statuses, filters.start, filters.end]
   );
 
   const toggleStatus = (code) => {
@@ -502,7 +509,7 @@ export default function KanbanBoard({ onEdit }) {
   // aplica filtros
   const filteredItems = useMemo(
     () => (items || []).filter(passesFilters),
-    [items, passesFilters],
+    [items, passesFilters]
   );
 
   // bucketização por coluna
@@ -540,7 +547,7 @@ export default function KanbanBoard({ onEdit }) {
         console.error(e);
       }
     },
-    [updateAtividade],
+    [updateAtividade]
   );
 
   // drag & drop entre colunas (atualiza histórico de HOJE)
@@ -565,7 +572,7 @@ export default function KanbanBoard({ onEdit }) {
         console.error(e);
       }
     },
-    [dataByColumn, updateAtividade],
+    [dataByColumn, updateAtividade]
   );
 
   return (
@@ -709,7 +716,10 @@ export default function KanbanBoard({ onEdit }) {
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
-                    <Column ref={provided.innerRef} {...provided.droppableProps}>
+                    <Column
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                    >
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
                         <Typography>{colLabel}</Typography>
