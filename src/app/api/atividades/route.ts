@@ -170,12 +170,11 @@ export async function GET(req: NextRequest) {
     let historicoWhere: any | undefined = undefined;
 
     switch (statusRaw) {
-
       case "EM_ANDAMENTO":
       case "EM ANDAMENTO":
         historicoWhere = {
           status: { not: "FEITO" },
-          dataReferencia: { gte: hoje, lt: amanha, },
+          dataReferencia: { gte: hoje, lt: amanha },
         };
         break;
       case "PROXIMAS":
@@ -190,19 +189,19 @@ export async function GET(req: NextRequest) {
         break;
       case "PENDENTE":
         historicoWhere = {
-          OR: [{ status: "PENDENTE" }, { status: "ATRASADO" },],
+          OR: [{ status: "PENDENTE" }, { status: "ATRASADO" }],
           ...(from && to
-            ? { dataReferencia: { gte: from, lte: to, }, }
-            : { dataReferencia: { lt: hoje, }, }),
+            ? { dataReferencia: { gte: from, lte: to } }
+            : { dataReferencia: { lt: hoje } }),
         };
         break;
       case "HISTORICO":
       case "HISTÓRICO":
         historicoWhere = {
-          status: { in: ["FEITO", "PULADO"], },
+          status: { in: ["FEITO", "PULADO"] },
           ...(from && to
-            ? { dataReferencia: { gte: from, lte: to, }, }
-            : { dataReferencia: { gte: addDays(hoje, -90), lt: amanha, }, }),
+            ? { dataReferencia: { gte: from, lte: to } }
+            : { dataReferencia: { gte: addDays(hoje, -90), lt: amanha } }),
         };
         break;
       case "FEITO":
@@ -210,7 +209,7 @@ export async function GET(req: NextRequest) {
       case "ATRASADO":
         historicoWhere = {
           status: statusRaw,
-          ...(from && to ? { dataReferencia: { gte: from, lte: to, }, } : {}),
+          ...(from && to ? { dataReferencia: { gte: from, lte: to } } : {}),
         };
         break;
       default:
@@ -249,7 +248,7 @@ export async function GET(req: NextRequest) {
       take,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      distinct: ["id"],              // <--- resolvendo duplicação
+      distinct: ["id"], // evita duplicação por join com historico
       include: {
         condominio: { select: { id: true, name: true } },
         historico: {
@@ -271,7 +270,6 @@ export async function GET(req: NextRequest) {
       },
     });
 
-
     const totalFiltradoPromise = prisma.atividade.count({
       where: whereAtividade,
     });
@@ -292,10 +290,12 @@ export async function GET(req: NextRequest) {
       items.length === take ? items[items.length - 1].id : null;
 
     return NextResponse.json({
-      items, nextCursor, total, ...(condominioId ? {
-        totalAtividadesNosCondominios,
-        totalAtividadeCondominhos: totalAtividadesNosCondominios,
-      } : {}),
+      items,
+      nextCursor,
+      total,
+      ...(condominioId
+        ? { totalAtividadesNosCondominios, totalAtividadeCondominhos: totalAtividadesNosCondominios }
+        : {}),
     });
   } catch (e: any) {
     if (e?.status) return e;
@@ -396,25 +396,28 @@ export async function POST(req: NextRequest) {
     });
 
     // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
-
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
     let dataRef = hoje;
-
-    if (created.expectedDate) { const d = new Date(created.expectedDate); d.setHours(0, 0, 0, 0); dataRef = d; }
+    if (created.expectedDate) {
+      const d = new Date(created.expectedDate);
+      d.setHours(0, 0, 0, 0);
+      dataRef = d;
+    }
 
     let status: "PENDENTE" | "ATRASADO" | "EM_ANDAMENTO" | "PROXIMAS" = "PENDENTE";
 
-
-    if (dataRef > hoje) { status = "PROXIMAS"; }
-
-    else if (dataRef.getTime() === hoje.getTime()) { status = "EM_ANDAMENTO"; }
-
-    else if (dataRef < hoje) { status = "ATRASADO"; }
+    if (dataRef > hoje) {
+      status = "PROXIMAS";
+    } else if (dataRef.getTime() === hoje.getTime()) {
+      status = "EM_ANDAMENTO";
+    } else if (dataRef < hoje) {
+      status = "ATRASADO";
+    }
 
     await prisma.atividadeHistorico.create({
-      data: { atividadeId: created.id, dataReferencia: dataRef, status, },
+      data: { atividadeId: created.id, dataReferencia: dataRef, status },
     });
 
     return NextResponse.json(created, { status: 201 });
