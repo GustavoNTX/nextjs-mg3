@@ -24,7 +24,6 @@ export const runtime = "nodejs";
 async function getEmpresaIdFromRequest(): Promise<string | null> {
   const h = await headers();
 
-  // 1) x-user-id
   const userId = h.get("x-user-id") ?? undefined;
   if (userId) {
     const u = await prisma.user.findUnique({
@@ -34,7 +33,6 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
     if (u?.empresaId) return u.empresaId;
   }
 
-  // 2) Authorization: Bearer <jwt>
   const auth = h.get("authorization");
   if (auth?.startsWith("Bearer ")) {
     const token = auth.slice(7);
@@ -163,12 +161,9 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            // se tiver no schema, você pode expor:
-            // dataEntrega: true,
           },
         },
         historico: {
-          // carrega todo o histórico; se quiser só no range, pode otimizar
           orderBy: { dataReferencia: "asc" },
         },
       },
@@ -180,17 +175,13 @@ export async function GET(
     const to = toDate(searchParams.get("to"));
     const wantStats = searchParams.get("stats") === "1";
 
-    // monta TaskLike a partir do molde
     const taskLike: TaskLike = {
       id: item.id,
       name: item.name,
       frequency: item.frequencia,
       startDate: (item.expectedDate ?? item.createdAt).toISOString(),
-      // se tiver a data de entrega do condomínio no schema:
-      // buildingDeliveryDate: item.condominio?.dataEntrega?.toISOString(),
     };
 
-    // converte histórico completo da atividade pra HistoricoLike
     const historicoLike: HistoricoLike[] = item.historico.map((h) => ({
       atividadeId: item.id,
       dataReferencia: h.dataReferencia.toISOString(),
@@ -203,15 +194,13 @@ export async function GET(
 
     const statusHoje = getStatusNoDia(taskLike, historicoLike, hoje);
 
-    // se não pediu stats ou não mandou range, devolve só a atividade + statusHoje
     if (!wantStats || !from || !to) {
       return NextResponse.json({
         atividade: item,
-        statusHoje, // {esperadoHoje, statusHoje, historicoHoje}
+        statusHoje,
       });
     }
 
-    // aqui mantém tuas stats SQL como já estavam, mas agora só dentro do range
     const [summary] = await prisma.$queryRaw<
       Array<{ feitos: number; nao_feitos: number; total: number }>
     >`
@@ -239,7 +228,6 @@ export async function GET(
       ORDER BY h."dataReferencia"
     `;
 
-    // histórico detalhado já no range
     const historicoRange = await prisma.atividadeHistorico.findMany({
       where: { atividadeId: id, dataReferencia: { gte: from, lte: to } },
       orderBy: { dataReferencia: "asc" },
@@ -253,7 +241,6 @@ export async function GET(
       },
     });
 
-    // monta calendarinho: dias que deveriam ter ocorrência no range, com status
     const calendario = buildCalendar(
       taskLike,
       historicoLike,
@@ -282,7 +269,7 @@ export async function GET(
 }
 
 /** ---------- PATCH ---------- */
-const HIST_SET = new Set(["PENDENTE", "ATRASADO", "EM_ANDAMENTO", "PROXIMAS", "FEITO", "PULADO",]);
+const HIST_SET = new Set(["PENDENTE", "ATRASADO", "EM_ANDAMENTO", "PROXIMAS", "FEITO", "PULADO"]);
 
 function toHistoricoStatus(input: unknown) {
   if (typeof input !== "string") return undefined;
@@ -296,16 +283,14 @@ const patchSchema = z
     empresaId: z.string().uuid(),
     condominioId: z.string().uuid(),
 
-    // molde
     expectedDate: dateFlex().optional(),
     prioridade: z.string().optional(),
     budgetStatus: z.string().optional(),
     appliedStandard: z.string().optional(),
     observacoes: z.string().optional().nullable(),
     tags: z.array(z.string()).optional(),
-    frequencia: z.string().optional(), // NOVO CAMPO
+    frequencia: z.string().optional(),
 
-    // histórico
     dataReferencia: z.preprocess(
       (v) => (v ? new Date(v as any) : undefined),
       z.date().optional(),
