@@ -48,7 +48,7 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
           if (u?.empresaId) return u.empresaId;
         }
       }
-    } catch {}
+    } catch { }
   }
   return null;
 }
@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
           OR: [{ status: "PENDENTE" }, { status: "ATRASADO" }],
           ...(from && to
             ? { dataReferencia: { gte: from, lte: to } }
-            : { dataReferencia: { lt: amanha } }),
+            : { dataReferencia: { lt: hoje } }),
         };
         break;
       case "HISTORICO":
@@ -220,14 +220,14 @@ export async function GET(req: NextRequest) {
     // Filtro textual
     const textWhere = q
       ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { model: { contains: q, mode: "insensitive" } },
-            { type: { contains: q, mode: "insensitive" } },
-            { location: { contains: q, mode: "insensitive" } },
-            { tags: { has: q } },
-          ],
-        }
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { model: { contains: q, mode: "insensitive" } },
+          { type: { contains: q, mode: "insensitive" } },
+          { location: { contains: q, mode: "insensitive" } },
+          { tags: { has: q } },
+        ],
+      }
       : {};
 
     // WHERE para a listagem (filtrado)
@@ -248,6 +248,7 @@ export async function GET(req: NextRequest) {
       take,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      distinct: ["id"], // evita duplicação por join com historico
       include: {
         condominio: { select: { id: true, name: true } },
         historico: {
@@ -275,8 +276,8 @@ export async function GET(req: NextRequest) {
 
     const totalAtividadesCondominioPromise = condominioId
       ? prisma.atividade.count({
-          where: { empresaId: authEmpresaId, condominioId, deletedAt: null },
-        })
+        where: { empresaId: authEmpresaId, condominioId, deletedAt: null },
+      })
       : Promise.resolve(null);
 
     const [items, total, totalAtividadesNosCondominios] = await Promise.all([
@@ -291,12 +292,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items,
       nextCursor,
-      total, // total filtrado (respeita q/prioridade/status/intervalo)
+      total,
       ...(condominioId
-        ? {
-            totalAtividadesNosCondominios, // nome canônico
-            totalAtividadeCondominhos: totalAtividadesNosCondominios, // alias solicitado
-          }
+        ? { totalAtividadesNosCondominios, totalAtividadeCondominhos: totalAtividadesNosCondominios }
         : {}),
     });
   } catch (e: any) {
@@ -366,7 +364,7 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data;
 
-     ensureEmpresaOptionalMatch(authEmpresaId, data.empresaId);
+    ensureEmpresaOptionalMatch(authEmpresaId, data.empresaId);
     await assertCondominioDaEmpresa(data.condominioId, authEmpresaId);
 
     const prioridadeEnum = toPrioridadeEnum(data.prioridade ?? undefined);
@@ -396,6 +394,33 @@ export async function POST(req: NextRequest) {
       },
       include: { condominio: { select: { id: true, name: true } } },
     });
+
+    // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
+    const agora = new Date();
+
+    let dataRef: Date;
+    if (created.expectedDate) {
+      const d = new Date(created.expectedDate);
+      d.setHours(agora.getHours(), agora.getMinutes(), agora.getSeconds(), agora.getMilliseconds());
+      dataRef = d;
+    } else {
+      dataRef = agora;
+    }
+
+    let status: "PENDENTE" | "ATRASADO" | "EM_ANDAMENTO" | "PROXIMAS" = "PENDENTE";
+
+    if (dataRef.getTime() > agora.getTime()) {
+      status = "PROXIMAS";
+    } else if (dataRef.getTime() === agora.getTime()) {
+      status = "EM_ANDAMENTO";
+    } else if (dataRef.getTime() < agora.getTime()) {
+      status = "ATRASADO";
+    }
+
+    await prisma.atividadeHistorico.create({
+      data: { atividadeId: created.id, dataReferencia: dataRef, status },
+    });
+
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {

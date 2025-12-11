@@ -1,7 +1,7 @@
 // src/components/KanbanBoard.jsx
 "use client";
 
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useMemo, useCallback, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -106,41 +106,92 @@ const atividadeHistoricoToList = (a) => {
 };
 
 /**
- * inferStatus: coluna do Kanban para HOJE
+ * Funções auxiliares para datas
+ */
+const parseDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return normalizeDate(value);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : normalizeDate(d);
+};
+
+const isSameDay = (a, b) => {
+  const dateA = parseDate(a);
+  const dateB = parseDate(b);
+  if (!dateA || !dateB) return false;
+  return dateA.getTime() === dateB.getTime();
+};
+
+/**
+ * Retorna o histórico mais recente de HOJE apenas
+ * Se não tiver histórico hoje, retorna null
+ */
+const getUltimoHistoricoHoje = (atividade) => {
+  if (!Array.isArray(atividade.historico) || !atividade.historico.length) {
+    return null;
+  }
+
+  const hoje = todayDate();
+  const historicosHoje = atividade.historico.filter(h => {
+    const dataHist = parseDate(h.dataReferencia);
+    return dataHist && isSameDay(dataHist, hoje);
+  });
+
+  if (!historicosHoje.length) return null;
+
+  return historicosHoje.reduce((maisRecente, atual) => {
+    const atualTime = new Date(atual.dataReferencia).getTime();
+    const maisRecenteTime = new Date(maisRecente.dataReferencia).getTime();
+    return atualTime > maisRecenteTime ? atual : maisRecente;
+  }, historicosHoje[0]);
+};
+
+/**
+ * inferStatus: coluna do Kanban para HOJE baseado APENAS no histórico de HOJE
  *  - PROXIMAS: não é esperado hoje e nunca foi feito
- *  - HISTORICO: já tem FEITO (hoje ou em outra data)
- *  - EM_ANDAMENTO: esperado hoje e hoje está EM_ANDAMENTO
- *  - PENDENTE: esperado hoje e não está feito / em andamento
+ *  - HISTORICO: tem FEITO no histórico de HOJE
+ *  - EM_ANDAMENTO: tem EM_ANDAMENTO no histórico de HOJE
+ *  - PENDENTE: é esperado hoje mas não tem registro OU tem PENDENTE hoje
  */
 const inferStatus = (a) => {
   try {
     const hoje = todayDate();
     const task = atividadeToTask(a);
-    if (!task) return "PENDENTE"; // fallback
+    if (!task) return "PENDENTE";
 
-    const historico = atividadeHistoricoToList(a);
-    const statusDia = getStatusNoDia(task, historico, hoje);
+    // Usar APENAS o último histórico de HOJE
+    const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+
+    // Se tem histórico HOJE, usa ele
+    if (ultimoHistoricoHoje) {
+      switch (ultimoHistoricoHoje.status.toUpperCase()) {
+        case "FEITO":
+          return "HISTORICO";
+        case "EM_ANDAMENTO":
+          return "EM_ANDAMENTO";
+        case "PENDENTE":
+        default:
+          return "PENDENTE";
+      }
+    }
+
+    // Não tem histórico HOJE: decide se é esperado hoje
+    const historicoList = atividadeHistoricoToList(a);
+    const statusDia = getStatusNoDia(task, historicoList, hoje);
 
     if (!statusDia.esperadoHoje) {
-      if (historico.some((h) => h.status === "FEITO")) return "HISTORICO";
-      return "PROXIMAS";
+      // Não é esperado hoje
+      // Verifica se já foi FEITO em QUALQUER data (para ir para Histórico)
+      return historicoList.some(h => h.status === "FEITO") ? "HISTORICO" : "PROXIMAS";
     }
 
-    switch (String(statusDia.statusHoje).toUpperCase()) {
-      case "FEITO":
-        return "HISTORICO";
-      case "EM_ANDAMENTO":
-        return "EM_ANDAMENTO";
-      default:
-        return "PENDENTE";
-    }
-  } catch {
+    // É esperado hoje mas não tem registro (primeira vez hoje)
+    return "PENDENTE";
+  } catch (error) {
+    console.error("Erro em inferStatus:", error);
     return "PENDENTE";
   }
 };
-
-const isRunning = (statusDia) =>
-  statusDia && String(statusDia.statusHoje).toUpperCase() === "EM_ANDAMENTO";
 
 /* ---------- estilos ---------- */
 const KanbanContainer = styled(Box)(({ theme }) => ({
@@ -424,8 +475,24 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 export default function KanbanBoard({ onEdit }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
-  const { items, loading, error, nextCursor, loadMore, updateAtividade } =
-    useAtividades();
+
+  // 🔥 Usar empresaItems que contém TODAS atividades da empresa (sem filtro por status)
+  const {
+    empresaItems,
+    empresaLoading,
+    empresaError,
+    loadEmpresa,
+    updateAtividade,
+    empresaId,
+    condominioId
+  } = useAtividades();
+
+  // Carregar todas as atividades da empresa quando o componente montar
+  useEffect(() => {
+    if (empresaId && condominioId) {
+      loadEmpresa({ reset: true, filters: {} }); // 🔥 SEM filtro = todas atividades
+    }
+  }, [empresaId, condominioId, loadEmpresa]);
 
   // colunas fixas por CODE
   const columns = useMemo(
@@ -446,7 +513,7 @@ export default function KanbanBoard({ onEdit }) {
   const closeFilters = () => setAnchorEl(null);
 
   const [filters, setFilters] = useState({
-    statuses: new Set(ALL_STATUSES), // todos selecionados
+    statuses: new Set(ALL_STATUSES), // todos selecionados por padrão
     start: "", // "YYYY-MM-DD"
     end: "",
   });
@@ -494,15 +561,26 @@ export default function KanbanBoard({ onEdit }) {
     if (!filters.start && !filters.end) return "Período";
     const fmt = (s) =>
       s ? new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR") : "";
-    return `${fmt(filters.start)}${
-      filters.start && filters.end ? " — " : ""
-    }${fmt(filters.end)}`;
+    return `${fmt(filters.start)}${filters.start && filters.end ? " — " : ""}${fmt(filters.end)}`;
   }, [filters.start, filters.end]);
 
-  // aplica filtros
+  // 🔥 Processar itens para manter apenas histórico de HOJE
+  const processedItems = useMemo(() => {
+    return (empresaItems || []).map((a) => {
+      // NORMALIZA: Mantém apenas o último histórico de HOJE
+      const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+
+      return {
+        ...a,
+        historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [],
+      };
+    });
+  }, [empresaItems]);
+
+  // aplicar filtros de UI nos itens processados
   const filteredItems = useMemo(
-    () => (items || []).filter(passesFilters),
-    [items, passesFilters],
+    () => processedItems.filter(passesFilters),
+    [processedItems, passesFilters],
   );
 
   // bucketização por coluna
@@ -571,7 +649,7 @@ export default function KanbanBoard({ onEdit }) {
   return (
     <KanbanContainer>
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Quadro de atividades
+        Quadro de atividades (Todas)
       </Typography>
 
       {/* Header + Filtros */}
@@ -690,13 +768,13 @@ export default function KanbanBoard({ onEdit }) {
       </Box>
 
       {/* Conteúdo */}
-      {loading && !items.length ? (
+      {empresaLoading && !empresaItems.length ? (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
         </Stack>
-      ) : error ? (
+      ) : empresaError ? (
         <Typography color="error" sx={{ textAlign: "center", mt: 4 }}>
-          {error}
+          {empresaError}
         </Typography>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
@@ -706,13 +784,18 @@ export default function KanbanBoard({ onEdit }) {
               const colColor = statusColor(col.code);
               const list = dataByColumn[col.code] || [];
 
+              // 🔥 Mostrar contador de atividades por coluna
+              const count = list.length;
+
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
                     <Column ref={provided.innerRef} {...provided.droppableProps}>
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
-                        <Typography>{colLabel}</Typography>
+                        <Typography>
+                          {colLabel} ({count})
+                        </Typography>
                       </ColumnHeaderStatusSpan>
 
                       {list.length > 0 ? (
@@ -744,19 +827,11 @@ export default function KanbanBoard({ onEdit }) {
                           color="text.secondary"
                           sx={{ textAlign: "center", mt: 2 }}
                         >
-                          Não há atividades para mostrar
+                          Não há atividades nesta coluna
                         </Typography>
                       )}
 
                       {provided.placeholder}
-
-                      {col.code === "PENDENTE" && nextCursor && (
-                        <Stack alignItems="center" sx={{ mt: 2 }}>
-                          <Button onClick={loadMore} variant="outlined">
-                            Carregar mais
-                          </Button>
-                        </Stack>
-                      )}
                     </Column>
                   )}
                 </Droppable>

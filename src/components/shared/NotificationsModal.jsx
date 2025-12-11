@@ -56,27 +56,32 @@ export default function NotificationsModal({ open, onClose }) {
   const today = useMemo(() => new Date(), [open]);
 
   useEffect(() => {
+
     if (!open || !loadNotifications) return;
     // só hoje
     loadNotifications({ leadDays: 0 });
   }, [open, loadNotifications]);
 
   // YYYY-MM-DD no fuso de Fortaleza
-  const todayISO = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
-  )
-    .toISOString()
-    .slice(0, 10);
+  const todayBrasilia = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  );
+  todayBrasilia.setHours(0, 0, 0, 0);
+
+  const todayISO = todayBrasilia.toISOString().slice(0, 10);
 
   // Notificações de HOJE (when === "due")
   const dueToday = useMemo(
     () =>
       notifications.filter(
         (n) => n.when === "due" && n.dueDateISO === todayISO
-      ),
+      )
+    
+    // console.log("notifications:", notifications)
+    ,
     [notifications, todayISO]
   );
-
+console.log("notifications 2:", notifications)
   const feitasHoje = useMemo(
     () =>
       dueToday.filter(
@@ -97,8 +102,7 @@ export default function NotificationsModal({ open, onClose }) {
     const key = `${n.atividadeId ?? n.title}-${n.dueDateISO}`;
     const primary = n.title || n.nameOnly || "Atividade";
     const secondary =
-      n.details ||
-      (done ? "Concluída hoje" : "Pendente para hoje");
+      n.details || (done ? "Concluída hoje" : "Pendente para hoje");
 
     return (
       <ListItem
