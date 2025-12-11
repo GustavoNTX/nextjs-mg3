@@ -1,6 +1,5 @@
 "use client";
 
-// 'useMemo' foi removido dos imports do React
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Layout from "@/components/Layout";
@@ -36,42 +35,19 @@ import {
 } from "@/contexts/AtividadesContext";
 import SelectCondominio from "@/components/SelectCondominio";
 
-// Normaliza qualquer formato vindo do backend para boolean
-const normalizeStatus = (s) => {
-  if (s === true || s === 1 || s === "EM_ANDAMENTO" || s === "IN_PROGRESS")
-    return true;
-  if (s === false || s === 0 || s === "PENDENTE" || s === "PENDING")
-    return false;
-  return false; // default seguro
-};
+/**
+ * Observação importante:
+ * - O backend NÃO aceita um campo "status" direto na entidade Atividade.
+ * - O estado da execução é armazenado em AtividadeHistorico.
+ * - Portanto aqui não há transformação de status para booleanos/enum antes de enviar.
+ */
 
-// >>> Ajuste conforme seu backend espera receber o status <<<
-const BACKEND_STATUS_MODE = "boolean"; // ou "enum"
-const encodeStatus = (bool) =>
-  BACKEND_STATUS_MODE === "enum"
-    ? bool
-      ? "EM_ANDAMENTO"
-      : "PENDENTE"
-    : !!bool;
-
+/* ---------- HeaderResumo (limpo) ---------- */
 function HeaderResumo() {
   const { selected } = useCondominoUI();
-  const {
-    // <<< CORREÇÃO: 'items' removido, não é mais usado aqui
-    stats,
-    loading,
-    totalAtividadesNosCondominios,
-  } = useAtividades();
+  const { stats, loading, totalAtividadesNosCondominios } = useAtividades();
 
-  console.log(useAtividades());
-
-  // <<< CORREÇÃO: O bloco 'safe = useMemo(...)' foi removido
-  // Ele estava calculando os stats de forma errada.
-
-  const total = totalAtividadesNosCondominios;
-  
-  // <<< CORREÇÃO: Usar 'stats' diretamente, com fallback para 0.
-  // 'stats' já é calculado no AtividadesContext usando a lógica correta (inferStatus)
+  const total = totalAtividadesNosCondominios ?? 0;
   const funcionando = stats?.emAndamento ?? 0;
   const pendentes = stats?.pendentes ?? 0;
 
@@ -83,19 +59,14 @@ function HeaderResumo() {
       sx={{ mb: 2 }}
     >
       <Stack direction="row" spacing={2} alignItems="center">
-        <Avatar
-          src={selected?.logoUrl || undefined}
-          alt={selected?.name || ""}
-        />
+        <Avatar src={selected?.logoUrl || undefined} alt={selected?.name || ""} />
         <Typography variant="h6" fontWeight={700}>
           {selected?.name || "Condomínio"}
         </Typography>
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
         <Chip label={`Total: ${total}`} />
-        {!!funcionando && (
-          <Chip color="success" label={`Funcionando: ${funcionando}`} />
-        )}
+        {!!funcionando && <Chip color="success" label={`Funcionando: ${funcionando}`} />}
         <Chip color="warning" label={`Pendentes: ${pendentes}`} />
         {loading && <CircularProgress size={18} />}
       </Stack>
@@ -103,6 +74,7 @@ function HeaderResumo() {
   );
 }
 
+/* ---------- CronogramaInner (corrigido) ---------- */
 function CronogramaInner() {
   const { selected, setSelected } = useCondominoUI();
   const { fetchWithAuth } = useAuth();
@@ -110,11 +82,7 @@ function CronogramaInner() {
   const params = useParams();
   const rawId = params?.id;
   const id =
-    typeof rawId === "string"
-      ? rawId
-      : Array.isArray(rawId)
-      ? rawId[0]
-      : undefined;
+    typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
   const singleMode = !!id;
 
   const [currentTab, setCurrentTab] = useState(0);
@@ -139,19 +107,27 @@ function CronogramaInner() {
     setAddAtividadeOpen(true);
   }, []);
 
+  /**
+   * handleSaveDialog:
+   * - Não altera "status" no payload (status é gerenciado via histórico)
+   * - Para criação, envia o DTO esperado pelo backend (createAtividade)
+   * - Para edição, envia apenas os campos do molde (sem status/histórico)
+   */
   const handleSaveDialog = useCallback(
     async (payload, { mode }) => {
       try {
+        // cria uma cópia simples e remove qualquer chave de status por segurança
         const dto = { ...payload };
-        if ("status" in dto)
-          dto.status = encodeStatus(normalizeStatus(dto.status));
+        if ("status" in dto) delete dto.status;
+        // remover campos que não são parte do modelo (se houver)
+        if ("id" in dto && mode !== "edit") delete dto.id;
 
         const result =
           mode === "edit" && dto?.id
             ? await updateAtividade(dto.id, dto)
             : await createAtividade(dto, id ?? dto?.condominioId);
 
-        if (id) await load({ condominioId: id, reset: true }); // <-- só consulta com condominioId
+        if (id) await load({ condominioId: id, reset: true });
         return result;
       } catch (e) {
         console.error(e);
@@ -195,8 +171,7 @@ function CronogramaInner() {
           logoUrl: item.imageUrl ?? null,
         });
       } catch (err) {
-        if (err?.name !== "AbortError")
-          router.replace("/selecione-o-condominio");
+        if (err?.name !== "AbortError") router.replace("/selecione-o-condominio");
       } finally {
         setLoadingCondominio(false);
       }
@@ -219,12 +194,7 @@ function CronogramaInner() {
 
       <Divider sx={{ mb: 2 }} />
       <Stack direction="row" justifyContent="flex-end" spacing={2} mb={3}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-          disabled={!singleMode}
-        >
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate} disabled={!singleMode}>
           Adicionar Atividade
         </Button>
       </Stack>
