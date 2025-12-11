@@ -396,29 +396,31 @@ export async function POST(req: NextRequest) {
     });
 
     // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const agora = new Date();
 
-    let dataRef = hoje;
+    let dataRef: Date;
     if (created.expectedDate) {
       const d = new Date(created.expectedDate);
-      d.setHours(0, 0, 0, 0);
+      d.setHours(agora.getHours(), agora.getMinutes(), agora.getSeconds(), agora.getMilliseconds());
       dataRef = d;
+    } else {
+      dataRef = agora;
     }
 
     let status: "PENDENTE" | "ATRASADO" | "EM_ANDAMENTO" | "PROXIMAS" = "PENDENTE";
 
-    if (dataRef > hoje) {
+    if (dataRef.getTime() > agora.getTime()) {
       status = "PROXIMAS";
-    } else if (dataRef.getTime() === hoje.getTime()) {
+    } else if (dataRef.getTime() === agora.getTime()) {
       status = "EM_ANDAMENTO";
-    } else if (dataRef < hoje) {
+    } else if (dataRef.getTime() < agora.getTime()) {
       status = "ATRASADO";
     }
 
     await prisma.atividadeHistorico.create({
       data: { atividadeId: created.id, dataReferencia: dataRef, status },
     });
+
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
