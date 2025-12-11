@@ -345,7 +345,6 @@ export async function PATCH(
     const histStatus = toHistoricoStatus(b.status);
     if (b.dataReferencia || histStatus || b.completedAt) {
       const dataRef = new Date(b.dataReferencia ?? new Date());
-      dataRef.setHours(0, 0, 0, 0);
 
       const hist = await prisma.atividadeHistorico.upsert({
         where: {

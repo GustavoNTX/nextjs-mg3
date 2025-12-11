@@ -150,7 +150,7 @@ model AtividadeHistorico {
   id             String          @id @default(uuid())
   atividadeId    String
   atividade      Atividade       @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
-  dataReferencia DateTime        @db.Date
+  dataReferencia DateTime
   status         HistoricoStatus @default(PENDENTE)
   completedAt    DateTime?
   userId         String?
