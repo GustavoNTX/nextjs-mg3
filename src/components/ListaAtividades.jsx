@@ -91,51 +91,94 @@ const atividadeHistoricoToList = (a) => {
 };
 
 /**
- * Retorna apenas o histórico mais recente de cada atividade
+ * Funções auxiliares para manipulação de datas
  */
-const getUltimoHistorico = (atividade) => {
-  if (!Array.isArray(atividade.historico) || !atividade.historico.length) return null;
-  return atividade.historico.reduce((maisRecente, atual) => {
-    const atualDate = new Date(atual.dataReferencia).getTime();
-    const maisRecenteDate = new Date(maisRecente.dataReferencia).getTime();
-    return atualDate > maisRecenteDate ? atual : maisRecente;
-  }, atividade.historico[0]);
+const parseDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return normalizeDate(value);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : normalizeDate(d);
+};
+
+const isSameDay = (a, b) => {
+  const dateA = parseDate(a);
+  const dateB = parseDate(b);
+  if (!dateA || !dateB) return false;
+  return dateA.getTime() === dateB.getTime();
 };
 
 /**
- * inferStatus: bucket da atividade HOJE
- *  - PROXIMAS: não esperado hoje e nunca foi feito
- *  - HISTORICO: já tem FEITO (hoje ou antes)
- *  - EM_ANDAMENTO: esperado hoje e EM_ANDAMENTO hoje
- *  - PENDENTE: esperado hoje e não feito / não em andamento
+ * Retorna o histórico mais recente de HOJE apenas
+ * Se não tiver histórico hoje, retorna null
+ */
+const getUltimoHistoricoHoje = (atividade) => {
+  if (!Array.isArray(atividade.historico) || !atividade.historico.length) {
+    return null;
+  }
+
+  const hoje = todayDate();
+
+  // Filtrar apenas históricos de HOJE
+  const historicosHoje = atividade.historico.filter(h => {
+    const dataHist = parseDate(h.dataReferencia);
+    return dataHist && isSameDay(dataHist, hoje);
+  });
+
+  if (!historicosHoje.length) {
+    return null; // Não tem histórico hoje
+  }
+
+  // Pegar o MAIS RECENTE (maior timestamp)
+  return historicosHoje.reduce((maisRecente, atual) => {
+    const atualTime = new Date(atual.dataReferencia).getTime();
+    const maisRecenteTime = new Date(maisRecente.dataReferencia).getTime();
+    return atualTime > maisRecenteTime ? atual : maisRecente;
+  }, historicosHoje[0]);
+};
+
+/**
+ * inferStatus: bucket da atividade HOJE baseado APENAS no histórico de HOJE
+ *  - PROXIMAS: não é esperado hoje e nunca foi feito em nenhuma data
+ *  - HISTORICO: tem FEITO no histórico de HOJE (apenas hoje conta)
+ *  - EM_ANDAMENTO: tem EM_ANDAMENTO no histórico de HOJE
+ *  - PENDENTE: é esperado hoje mas não tem registro OU tem PENDENTE hoje
  */
 const inferStatus = (a) => {
   try {
     const hoje = todayDate();
     const task = atividadeToTask(a);
-    if (!task) return "PENDENTE";
+    if (!task) return "PENDENTE"; // fallback
 
-    const historico = atividadeHistoricoToList(a);
-    const statusDia = getStatusNoDia(task, historico, hoje);
+    // 🔥 MUDANÇA CRÍTICA: Usar APENAS o último histórico de HOJE
+    const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+
+    // Se tem histórico HOJE, usa ele
+    if (ultimoHistoricoHoje) {
+      switch (ultimoHistoricoHoje.status.toUpperCase()) {
+        case "FEITO":
+          return "HISTORICO";
+        case "EM_ANDAMENTO":
+          return "EM_ANDAMENTO";
+        case "PENDENTE":
+        default:
+          return "PENDENTE";
+      }
+    }
+
+    // Não tem histórico HOJE: decide se é esperado hoje
+    const historicoList = atividadeHistoricoToList(a);
+    const statusDia = getStatusNoDia(task, historicoList, hoje);
 
     if (!statusDia.esperadoHoje) {
       // Não é esperado hoje
-      if (historico.some((h) => h.status === "FEITO")) {
-        return "HISTORICO";
-      }
-      return "PROXIMAS";
+      // Verifica se já foi FEITO em QUALQUER data (para ir para Histórico)
+      return historicoList.some(h => h.status === "FEITO") ? "HISTORICO" : "PROXIMAS";
     }
 
-    // É esperado hoje
-    switch (statusDia.statusHoje.toUpperCase()) {
-      case "FEITO":
-        return "HISTORICO";
-      case "EM_ANDAMENTO":
-        return "EM_ANDAMENTO";
-      default:
-        return "PENDENTE";
-    }
-  } catch {
+    // É esperado hoje mas não tem registro (primeira vez hoje)
+    return "PENDENTE";
+  } catch (error) {
+    console.error("Erro em inferStatus:", error);
     return "PENDENTE";
   }
 };
@@ -397,67 +440,48 @@ const ListaAtividades = ({ onEdit }) => {
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
-        const cur = inferStatus(activity);
+        const hoje = todayDate();
         const now = new Date();
 
-        // 🔥 CORREÇÃO: Usar a lógica correta baseada na data atual
-        const hoje = todayDate();
-        const task = atividadeToTask(activity);
-        const historicoList = atividadeHistoricoToList(activity);
+        // 🔥 SEMPRE cria/atualiza histórico para HOJE, independente da frequência
+        const patch = {
+          status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
+          dataReferencia: hoje.toISOString().split('T')[0], // Data de HOJE
+          completedAt: null,
+        };
 
-        if (!task) {
-          console.error("Não foi possível converter atividade para task");
-          return;
-        }
+        // Verifica qual é o status atual de HOJE para decidir próxima transição
+        const ultimoHistoricoHoje = getUltimoHistoricoHoje(activity);
 
-        const statusDia = getStatusNoDia(task, historicoList, hoje);
-
-        let patch;
-
-        if (statusDia.esperadoHoje) {
-          // Se é esperado hoje: alterna entre estados
-          switch (statusDia.statusHoje.toUpperCase()) {
+        if (ultimoHistoricoHoje) {
+          // Se já tem histórico HOJE, alterna entre os estados
+          switch (ultimoHistoricoHoje.status.toUpperCase()) {
             case "PENDENTE":
-            case "SEM_REGISTRO":
-              // Vai para EM_ANDAMENTO
-              patch = {
-                status: "EM_ANDAMENTO",
-                dataReferencia: hoje.toISOString().split('T')[0],
-                completedAt: null,
-              };
+              // Pendente → Em Andamento
+              patch.status = "EM_ANDAMENTO";
+              patch.completedAt = null;
               break;
             case "EM_ANDAMENTO":
-              // Vai para FEITO
-              patch = {
-                status: "FEITO",
-                dataReferencia: hoje.toISOString().split('T')[0],
-                completedAt: now.toISOString(),
-              };
+              // Em Andamento → Feito
+              patch.status = "FEITO";
+              patch.completedAt = now.toISOString();
               break;
-            default:
-              // FEITO volta para PENDENTE
-              patch = {
-                status: "PENDENTE",
-                dataReferencia: hoje.toISOString().split('T')[0],
-                completedAt: null,
-              };
+            case "FEITO":
+              // Feito → Pendente (recicla)
+              patch.status = "PENDENTE";
+              patch.completedAt = null;
+              break;
           }
-        } else {
-          // Não é esperado hoje: inicia mesmo assim
-          patch = {
-            status: "EM_ANDAMENTO",
-            dataReferencia: hoje.toISOString().split('T')[0],
-            completedAt: null,
-          };
         }
+        // Se não tem histórico hoje, fica com EM_ANDAMENTO (padrão)
 
         await updateAtividade(activity.id, patch);
-        // Não chame handleRefresh() - o contexto já atualiza
+        // O contexto já atualiza automaticamente, não precisa de handleRefresh
       } catch (e) {
         console.error("Erro ao alternar status:", e);
       }
     },
-    [updateAtividade] // Remova handleRefresh
+    [updateAtividade] // Removido handleRefresh
   );
 
   const handleDelete = useCallback(
@@ -473,20 +497,24 @@ const ListaAtividades = ({ onEdit }) => {
   );
 
   /**
-   * Processa items para usar apenas o histórico mais recente de cada atividade
+   * Processa items para usar apenas o histórico mais recente de HOJE
+   * Isso evita duplicação quando uma atividade tem múltiplos históricos no mesmo dia
    */
   const processedItems = useMemo(() => {
     return items.map((a) => {
-      const ultimoHistorico = getUltimoHistorico(a);
+      // 🔥 NORMALIZA: Mantém apenas o último histórico de HOJE
+      const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+
       return {
         ...a,
-        historico: ultimoHistorico ? [ultimoHistorico] : [], // só o histórico mais recente
+        historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [],
       };
     });
   }, [items]);
 
   /**
    * Filtra items pelo status da aba ativa
+   * Usa a nova lógica de inferStatus que considera apenas HOJE
    */
   const filteredItems = useMemo(() => {
     return processedItems.filter((a) => inferStatus(a) === activeKey);
