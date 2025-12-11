@@ -1,4 +1,3 @@
-// src/components/EditCondominioDialog.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,7 +19,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  FormHelperText,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
@@ -50,10 +48,12 @@ export default function EditCondominioDialog({
   condominio,
 }) {
   const { enterAtividades } = useCondominoUI();
-
   const router = useRouter();
+
   const [values, setValues] = useState(condominio || {});
   const [currentTab, setCurrentTab] = useState(0);
+  const [loadingAtividades, setLoadingAtividades] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
 
   useEffect(() => {
     if (condominio) {
@@ -63,35 +63,41 @@ export default function EditCondominioDialog({
 
   if (!condominio) return null;
 
-  const handleTabChange = (event, newValue) => {
-    setCurrentTab(newValue);
-  };
+  const handleTabChange = (event, newValue) => setCurrentTab(newValue);
 
-  const handleChange = (field) => (e) => {
+  const handleChange = (field) => (e) =>
     setValues((v) => ({ ...v, [field]: e.target.value }));
+
+  const handleSaveChanges = async () => {
+    try {
+      setSavingChanges(true);
+      await onSave(values);
+      onClose();
+    } finally {
+      setSavingChanges(false);
+    }
   };
 
-  const handleSaveChanges = () => {
-    onSave(values);
-    onClose();
-  };
-
-  const handleOpenAtividades = (alvoId = condominio?.id) => {
-    if (alvoId) {
-      enterAtividades({
-        id: alvoId,
-        name: condominio?.name ?? "",
-        logoUrl: condominio?.imageUrl ?? null,
-      });
-      router.push(`/atividades/${alvoId}`);
-    } else {
-      // modo "Todos"
-      enterAtividades({
-        id: null,
-        name: "Todos os condomínios",
-        logoUrl: null,
-      });
-      router.push(`/atividades`);
+  const handleOpenAtividades = async (alvoId = condominio?.id) => {
+    try {
+      setLoadingAtividades(true);
+      if (alvoId) {
+        enterAtividades({
+          id: alvoId,
+          name: condominio?.name ?? "",
+          logoUrl: condominio?.imageUrl ?? null,
+        });
+        router.push(`/atividades/${alvoId}`);
+      } else {
+        enterAtividades({
+          id: null,
+          name: "Todos os condomínios",
+          logoUrl: null,
+        });
+        router.push(`/atividades`);
+      }
+    } finally {
+      setLoadingAtividades(false);
     }
   };
 
@@ -130,11 +136,7 @@ export default function EditCondominioDialog({
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-        <Tabs
-          value={currentTab}
-          onChange={handleTabChange}
-          aria-label="abas de edição"
-        >
+        <Tabs value={currentTab} onChange={handleTabChange} aria-label="abas de edição">
           <Tab label="Visão Geral" />
           <Tab label="Anexos" />
           <Tab label="Anotações" />
@@ -194,11 +196,9 @@ export default function EditCondominioDialog({
                   <MenuItem value="sao_paulo">São Paulo</MenuItem>
                   <MenuItem value="rio">Rio de Janeiro</MenuItem>
                   <MenuItem value="Fortaleza">Fortaleza</MenuItem>
-                  {/* Adicione outras cidades aqui */}
                 </Select>
               </FormControl>
             </Grid>
-
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth variant="outlined">
                 <InputLabel id="state-select-label">Estado</InputLabel>
@@ -214,7 +214,6 @@ export default function EditCondominioDialog({
                   <MenuItem value="SP">São Paulo</MenuItem>
                   <MenuItem value="RJ">Rio de Janeiro</MenuItem>
                   <MenuItem value="CE">Ceará</MenuItem>
-                  {/* Adicione outros estados aqui */}
                 </Select>
               </FormControl>
             </Grid>
@@ -237,24 +236,55 @@ export default function EditCondominioDialog({
             </Grid>
           </Grid>
         </Paper>
-        <Box
-          sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}
-        >
-          {/* <<< MUDANÇA 4: Adicionar o onClick ao botão */}
+
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}>
+          {/* Botão abrir atividades com travamento */}
           <Button
             variant="contained"
+            fullWidth
+            disabled={loadingAtividades}
             endIcon={<ArrowForwardIosIcon />}
+            sx={{
+              mt: 0,
+              mb: 1,
+              backgroundColor: "#545454",
+              color: "#ffffff",
+              textTransform: "uppercase",
+              fontWeight: "bold",
+              borderRadius: 2,
+              padding: "10px 0",
+              "&:hover": { backgroundColor: "#333" },
+              "&.Mui-disabled": {
+                backgroundColor: "#7a7a7a",
+                color: "#ccc",
+              },
+            }}
             onClick={() => handleOpenAtividades(condominio.id)}
           >
-            Abrir Atividades
+            {loadingAtividades ? "CARREGANDO..." : "Abrir Atividades"}
           </Button>
+
           <Button
             variant="contained"
+            fullWidth
             color="secondary"
             startIcon={<EditIcon />}
+            disabled={savingChanges}
+            sx={{
+              mt: 0,
+              mb: 1,
+              textTransform: "uppercase",
+              fontWeight: "bold",
+              borderRadius: 2,
+              padding: "10px 0",
+              "&.Mui-disabled": {
+                backgroundColor: "#9e9e9e",
+                color: "#eee",
+              },
+            }}
             onClick={handleSaveChanges}
           >
-            Salvar Alterações
+            {savingChanges ? "CARREGANDO..." : "Salvar Alterações"}
           </Button>
         </Box>
       </TabPanel>
