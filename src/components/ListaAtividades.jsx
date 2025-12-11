@@ -91,6 +91,18 @@ const atividadeHistoricoToList = (a) => {
 };
 
 /**
+ * Retorna apenas o histórico mais recente de cada atividade
+ */
+const getUltimoHistorico = (atividade) => {
+  if (!Array.isArray(atividade.historico) || !atividade.historico.length) return null;
+  return atividade.historico.reduce((maisRecente, atual) => {
+    const atualDate = new Date(atual.dataReferencia).getTime();
+    const maisRecenteDate = new Date(maisRecente.dataReferencia).getTime();
+    return atualDate > maisRecenteDate ? atual : maisRecente;
+  }, atividade.historico[0]);
+};
+
+/**
  * inferStatus: bucket da atividade HOJE
  *  - PROXIMAS: não esperado hoje e nunca foi feito
  *  - HISTORICO: já tem FEITO (hoje ou antes)
@@ -107,11 +119,15 @@ const inferStatus = (a) => {
     const statusDia = getStatusNoDia(task, historico, hoje);
 
     if (!statusDia.esperadoHoje) {
-      if (historico.some((h) => h.status === "FEITO")) return "HISTORICO";
+      // Não é esperado hoje
+      if (historico.some((h) => h.status === "FEITO")) {
+        return "HISTORICO";
+      }
       return "PROXIMAS";
     }
 
-    switch (String(statusDia.statusHoje).toUpperCase()) {
+    // É esperado hoje
+    switch (statusDia.statusHoje.toUpperCase()) {
       case "FEITO":
         return "HISTORICO";
       case "EM_ANDAMENTO":
@@ -123,6 +139,7 @@ const inferStatus = (a) => {
     return "PENDENTE";
   }
 };
+
 
 /* ---------- estilos ---------- */
 const TabWrapper = styled(Box)(({ theme }) => ({
@@ -192,6 +209,9 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
   const statusColor = statusColorOf(st);
   const hasPhoto = Boolean(activity.photoUrl);
 
+  const toggleButtonLabel =
+    st === "EM_ANDAMENTO" ? "Concluir atividade" : "Iniciar atividade";
+
   return (
     <CardContainer variant="outlined">
       <Grid container spacing={2} alignItems="center" justifyContent="space-between">
@@ -235,7 +255,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         <Grid item xs={12} sm={6} md={4}>
           <InfoItem label="Quantidade">{activity.quantity}</InfoItem>
         </Grid>
-
         <Grid item xs={12} sm={6} md={4}>
           <InfoItem label="Frequência">{activity.frequencia}</InfoItem>
         </Grid>
@@ -245,14 +264,12 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         <Grid item xs={12} sm={6} md={4}>
           <InfoItem label="Tipo de Atividade">{activity.tipoAtividade}</InfoItem>
         </Grid>
-
         <Grid item xs={12} md={8}>
           <InfoItem label="Modelo / Descrição">{activity.model}</InfoItem>
         </Grid>
         <Grid item xs={12} md={4}>
           <InfoItem label="Criado em">{formatDateTime(activity.createdAt)}</InfoItem>
         </Grid>
-
         <Grid item xs={12}>
           <InfoItem label="Observações">{activity.observacoes}</InfoItem>
         </Grid>
@@ -284,9 +301,13 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
       </Grid>
 
       <Stack direction="row" spacing={1} sx={{ mt: 2 }} justifyContent="flex-end">
-        <Button size="small" variant="outlined" onClick={() => onToggleStatus?.(activity)}>
-          Marcar como{" "}
-          {inferStatus(activity) === "EM_ANDAMENTO" ? "Pendente" : "Em andamento"}
+        <Button
+          size="small"
+          variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
+          color={st === "EM_ANDAMENTO" ? "success" : "primary"}
+          onClick={() => onToggleStatus?.(activity)}
+        >
+          {toggleButtonLabel}
         </Button>
       </Stack>
     </CardContainer>
@@ -326,13 +347,39 @@ const ListaAtividades = ({ onEdit }) => {
   // auto-load por aba + condomínio (filtro de status é no backend)
   useEffect(() => {
     if (!condominioId) return;
+
     const tab = TABS.find((t) => t.key === activeKey);
-    const status = tab?.status;
+    let backendStatus = null;
+
+    // 🔥 CORREÇÃO: Mapear status do frontend para status do backend
+    switch (activeKey) {
+      case "EM_ANDAMENTO":
+        backendStatus = "EM_ANDAMENTO";
+        break;
+      case "PENDENTE":
+        backendStatus = "PENDENTE";
+        break;
+      case "HISTORICO":
+        backendStatus = "FEITO";
+        break;
+      case "PROXIMAS":
+        // Para PRÓXIMAS, não filtrar por status no backend
+        backendStatus = null;
+        break;
+    }
+
     const sameCondo = lastQueryRef.current.condo === condominioId;
-    const sameStatus = lastQueryRef.current.status === status;
+    const sameStatus = lastQueryRef.current.status === backendStatus;
+
     if (sameCondo && sameStatus) return;
-    lastQueryRef.current = { condo: condominioId, status };
-    load({ condominioId, reset: true, filters: { status } });
+
+    lastQueryRef.current = { condo: condominioId, status: backendStatus };
+
+    load({
+      condominioId,
+      reset: true,
+      filters: backendStatus ? { status: backendStatus } : {}
+    });
   }, [condominioId, activeKey, TABS, load]);
 
   const handleTabClick = useCallback((tabKey) => setActiveKey(tabKey), []);
@@ -352,26 +399,65 @@ const ListaAtividades = ({ onEdit }) => {
       try {
         const cur = inferStatus(activity);
         const now = new Date();
-        const dataRefISO = now.toISOString();
 
-        // alterna EM_ANDAMENTO <-> PENDENTE; PROXIMAS/HISTORICO => força EM_ANDAMENTO hoje
-        let newHistStatus;
-        if (cur === "EM_ANDAMENTO") newHistStatus = "PENDENTE";
-        else newHistStatus = "EM_ANDAMENTO";
+        // 🔥 CORREÇÃO: Usar a lógica correta baseada na data atual
+        const hoje = todayDate();
+        const task = atividadeToTask(activity);
+        const historicoList = atividadeHistoricoToList(activity);
 
-        const patch = {
-          status: newHistStatus, // status do HISTÓRICO
-          dataReferencia: dataRefISO,
-          completedAt: null,
-        };
+        if (!task) {
+          console.error("Não foi possível converter atividade para task");
+          return;
+        }
+
+        const statusDia = getStatusNoDia(task, historicoList, hoje);
+
+        let patch;
+
+        if (statusDia.esperadoHoje) {
+          // Se é esperado hoje: alterna entre estados
+          switch (statusDia.statusHoje.toUpperCase()) {
+            case "PENDENTE":
+            case "SEM_REGISTRO":
+              // Vai para EM_ANDAMENTO
+              patch = {
+                status: "EM_ANDAMENTO",
+                dataReferencia: hoje.toISOString().split('T')[0],
+                completedAt: null,
+              };
+              break;
+            case "EM_ANDAMENTO":
+              // Vai para FEITO
+              patch = {
+                status: "FEITO",
+                dataReferencia: hoje.toISOString().split('T')[0],
+                completedAt: now.toISOString(),
+              };
+              break;
+            default:
+              // FEITO volta para PENDENTE
+              patch = {
+                status: "PENDENTE",
+                dataReferencia: hoje.toISOString().split('T')[0],
+                completedAt: null,
+              };
+          }
+        } else {
+          // Não é esperado hoje: inicia mesmo assim
+          patch = {
+            status: "EM_ANDAMENTO",
+            dataReferencia: hoje.toISOString().split('T')[0],
+            completedAt: null,
+          };
+        }
 
         await updateAtividade(activity.id, patch);
-        handleRefresh();
+        // Não chame handleRefresh() - o contexto já atualiza
       } catch (e) {
-        console.error(e);
+        console.error("Erro ao alternar status:", e);
       }
     },
-    [updateAtividade, handleRefresh]
+    [updateAtividade] // Remova handleRefresh
   );
 
   const handleDelete = useCallback(
@@ -385,6 +471,26 @@ const ListaAtividades = ({ onEdit }) => {
     },
     [deleteAtividade, handleRefresh]
   );
+
+  /**
+   * Processa items para usar apenas o histórico mais recente de cada atividade
+   */
+  const processedItems = useMemo(() => {
+    return items.map((a) => {
+      const ultimoHistorico = getUltimoHistorico(a);
+      return {
+        ...a,
+        historico: ultimoHistorico ? [ultimoHistorico] : [], // só o histórico mais recente
+      };
+    });
+  }, [items]);
+
+  /**
+   * Filtra items pelo status da aba ativa
+   */
+  const filteredItems = useMemo(() => {
+    return processedItems.filter((a) => inferStatus(a) === activeKey);
+  }, [processedItems, activeKey]);
 
   return (
     <Box>
@@ -423,7 +529,7 @@ const ListaAtividades = ({ onEdit }) => {
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            {items.length ? `${items.length} atividades` : "Sem atividades"}
+            {filteredItems.length ? `${filteredItems.length} atividades` : "Sem atividades"}
           </Typography>
         </Paper>
 
@@ -438,7 +544,7 @@ const ListaAtividades = ({ onEdit }) => {
       </Box>
 
       {/* Lista */}
-      {loading && !items.length ? (
+      {loading && !filteredItems.length ? (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
         </Stack>
@@ -446,10 +552,16 @@ const ListaAtividades = ({ onEdit }) => {
         <Typography color="error" sx={{ textAlign: "center", mt: 4 }}>
           {error}
         </Typography>
-      ) : items.length > 0 ? (
+      ) : filteredItems.length > 0 ? (
         <>
-          {items.map((activity) => (
-            <ActivityCard key={activity.id} activity={activity} onToggleStatus={handleToggleStatus} onDelete={handleDelete} onEdit={onEdit} />
+          {filteredItems.map((activity) => (
+            <ActivityCard
+              key={activity.id}
+              activity={activity}
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDelete}
+              onEdit={onEdit}
+            />
           ))}
           {nextCursor && (
             <Stack alignItems="center" sx={{ mt: 2 }}>
