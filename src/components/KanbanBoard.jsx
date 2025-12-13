@@ -424,8 +424,32 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 export default function KanbanBoard({ onEdit }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
-  const { items, loading, error, nextCursor, loadMore, updateAtividade } =
-    useAtividades();
+  const {
+    items,
+    loading,
+    error,
+    nextCursor,
+    load,
+    loadMore,
+    updateAtividade,
+    condominioId,
+  } = useAtividades();
+
+  const KANBAN_FILTERS = { q: "", prioridade: null, status: null };
+
+  // load inicial: traz TODAS as atividades do condomínio, sem filtro de status
+  useEffect(() => {
+    if (!condominioId) return;
+
+    // se não quiser recarregar sempre, mantém esse if
+    // if (items && items.length) return;
+
+    load({
+      condominioId,
+      reset: true,
+      filters: KANBAN_FILTERS, // <- força sem status
+    });
+  }, [condominioId, load]);
 
   // carrega TODAS as páginas automaticamente
   useEffect(() => {
@@ -760,13 +784,13 @@ export default function KanbanBoard({ onEdit }) {
 
                       {provided.placeholder}
 
-                      {col.code === "PENDENTE" && nextCursor && (
+                      {/* {col.code === "PENDENTE" && nextCursor && (
                         <Stack alignItems="center" sx={{ mt: 2 }}>
                           <Button onClick={loadMore} variant="outlined">
                             Carregar mais
                           </Button>
                         </Stack>
-                      )}
+                      )} */}
                     </Column>
                   )}
                 </Droppable>
