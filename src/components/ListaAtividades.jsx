@@ -1,7 +1,13 @@
 // src/components/ListaAtividades.jsx
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   Box,
   Typography,
@@ -119,7 +125,7 @@ const getUltimoHistoricoHoje = (atividade) => {
   const hoje = todayDate();
 
   // Filtrar apenas históricos de HOJE
-  const historicosHoje = atividade.historico.filter(h => {
+  const historicosHoje = atividade.historico.filter((h) => {
     const dataHist = parseDate(h.dataReferencia);
     return dataHist && isSameDay(dataHist, hoje);
   });
@@ -172,7 +178,9 @@ const inferStatus = (a) => {
     if (!statusDia.esperadoHoje) {
       // Não é esperado hoje
       // Verifica se já foi FEITO em QUALQUER data (para ir para Histórico)
-      return historicoList.some(h => h.status === "FEITO") ? "HISTORICO" : "PROXIMAS";
+      return historicoList.some((h) => h.status === "FEITO")
+        ? "HISTORICO"
+        : "PROXIMAS";
     }
 
     // É esperado hoje mas não tem registro (primeira vez hoje)
@@ -182,7 +190,6 @@ const inferStatus = (a) => {
     return "PENDENTE";
   }
 };
-
 
 /* ---------- estilos ---------- */
 const TabWrapper = styled(Box)(({ theme }) => ({
@@ -238,7 +245,11 @@ const StatusCircle = styled("div")(({ color }) => ({
 
 const InfoItem = ({ label, children }) => (
   <Box>
-    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: "bold" }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ fontWeight: "bold" }}
+    >
       {label}
     </Typography>
     <Typography variant="user-body2">{children || "—"}</Typography>
@@ -257,7 +268,12 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
 
   return (
     <CardContainer variant="outlined">
-      <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+      <Grid
+        container
+        spacing={2}
+        alignItems="center"
+        justifyContent="space-between"
+      >
         <Grid item xs={12} md="auto">
           <Stack direction="row" alignItems="center" spacing={1}>
             <ImageIcon fontSize="small" />
@@ -265,21 +281,40 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
               {activity.name}
             </Typography>
             {activity.prioridade && (
-              <Chip size="small" label={`Prioridade: ${activity.prioridade}`} variant="outlined" />
+              <Chip
+                size="small"
+                label={`Prioridade: ${activity.prioridade}`}
+                variant="outlined"
+              />
             )}
           </Stack>
         </Grid>
         <Grid item xs={12} md="auto">
-          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent={{ xs: "flex-start", md: "flex-end" }}
+          >
             <StatusSpan color={statusColor}>
               <StatusCircle color={statusColor} />
               {statusText}
             </StatusSpan>
 
-            <IconButton aria-label="Editar" onClick={() => onEdit?.(activity)} size="small" sx={{ ml: 1 }}>
+            <IconButton
+              aria-label="Editar"
+              onClick={() => onEdit?.(activity)}
+              size="small"
+              sx={{ ml: 1 }}
+            >
               <EditIcon fontSize="small" />
             </IconButton>
-            <IconButton aria-label="Excluir" onClick={() => onDelete?.(activity.id)} size="small" sx={{ ml: 1 }}>
+            <IconButton
+              aria-label="Excluir"
+              onClick={() => onDelete?.(activity.id)}
+              size="small"
+              sx={{ ml: 1 }}
+            >
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>
           </Stack>
@@ -305,13 +340,17 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
           <InfoItem label="Equipe">{activity.equipe}</InfoItem>
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Tipo de Atividade">{activity.tipoAtividade}</InfoItem>
+          <InfoItem label="Tipo de Atividade">
+            {activity.tipoAtividade}
+          </InfoItem>
         </Grid>
         <Grid item xs={12} md={8}>
           <InfoItem label="Modelo / Descrição">{activity.model}</InfoItem>
         </Grid>
         <Grid item xs={12} md={4}>
-          <InfoItem label="Criado em">{formatDateTime(activity.createdAt)}</InfoItem>
+          <InfoItem label="Criado em">
+            {formatDateTime(activity.createdAt)}
+          </InfoItem>
         </Grid>
         <Grid item xs={12}>
           <InfoItem label="Observações">{activity.observacoes}</InfoItem>
@@ -343,7 +382,12 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         )}
       </Grid>
 
-      <Stack direction="row" spacing={1} sx={{ mt: 2 }} justifyContent="flex-end">
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ mt: 2 }}
+        justifyContent="flex-end"
+      >
         <Button
           size="small"
           variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
@@ -376,10 +420,30 @@ const ListaAtividades = ({ onEdit }) => {
 
   const TABS = useMemo(
     () => [
-      { key: "PROXIMAS", label: "Próximas", color: theme.palette.text.secondary, status: "PROXIMAS" },
-      { key: "EM_ANDAMENTO", label: "Em andamento", color: theme.palette.info.main, status: "EM_ANDAMENTO" },
-      { key: "PENDENTE", label: "Pendente", color: "#FF5959", status: "PENDENTE" },
-      { key: "HISTORICO", label: "Histórico", color: "rgb(135, 231, 106)", status: "HISTORICO" },
+      {
+        key: "PROXIMAS",
+        label: "Próximas",
+        color: theme.palette.text.secondary,
+        status: "PROXIMAS",
+      },
+      {
+        key: "EM_ANDAMENTO",
+        label: "Em andamento",
+        color: theme.palette.info.main,
+        status: "EM_ANDAMENTO",
+      },
+      {
+        key: "PENDENTE",
+        label: "Pendente",
+        color: "#FF5959",
+        status: "PENDENTE",
+      },
+      {
+        key: "HISTORICO",
+        label: "Histórico",
+        color: "rgb(135, 231, 106)",
+        status: "HISTORICO",
+      },
     ],
     [theme.palette.text.secondary, theme.palette.info.main]
   );
@@ -388,54 +452,74 @@ const ListaAtividades = ({ onEdit }) => {
   const lastQueryRef = useRef({ condo: null, status: null });
 
   // auto-load por aba + condomínio (filtro de status é no backend)
+  // useEffect(() => {
+  //   if (!condominioId) return;
+
+  //   const tab = TABS.find((t) => t.key === activeKey);
+  //   let backendStatus = null;
+
+  //   // 🔥 CORREÇÃO: Mapear status do frontend para status do backend
+  //   switch (activeKey) {
+  //     case "EM_ANDAMENTO":
+  //       backendStatus = "EM_ANDAMENTO";
+  //       break;
+  //     case "PENDENTE":
+  //       backendStatus = "PENDENTE";
+  //       break;
+  //     case "HISTORICO":
+  //       backendStatus = "FEITO";
+  //       break;
+  //     case "PROXIMAS":
+  //       // Para PRÓXIMAS, não filtrar por status no backend
+  //       backendStatus = null;
+  //       break;
+  //   }
+
+  //   const sameCondo = lastQueryRef.current.condo === condominioId;
+  //   const sameStatus = lastQueryRef.current.status === backendStatus;
+
+  //   if (sameCondo && sameStatus) return;
+
+  //   lastQueryRef.current = { condo: condominioId, status: backendStatus };
+
+  //   load({
+  //     condominioId,
+  //     reset: true,
+  //     filters: backendStatus ? { status: backendStatus } : {}
+  //   });
+  // }, [condominioId, activeKey, TABS, load]);
+
   useEffect(() => {
     if (!condominioId) return;
 
-    const tab = TABS.find((t) => t.key === activeKey);
-    let backendStatus = null;
-
-    // 🔥 CORREÇÃO: Mapear status do frontend para status do backend
-    switch (activeKey) {
-      case "EM_ANDAMENTO":
-        backendStatus = "EM_ANDAMENTO";
-        break;
-      case "PENDENTE":
-        backendStatus = "PENDENTE";
-        break;
-      case "HISTORICO":
-        backendStatus = "FEITO";
-        break;
-      case "PROXIMAS":
-        // Para PRÓXIMAS, não filtrar por status no backend
-        backendStatus = null;
-        break;
-    }
-
     const sameCondo = lastQueryRef.current.condo === condominioId;
-    const sameStatus = lastQueryRef.current.status === backendStatus;
+    if (sameCondo) return;
 
-    if (sameCondo && sameStatus) return;
-
-    lastQueryRef.current = { condo: condominioId, status: backendStatus };
+    lastQueryRef.current = { condo: condominioId };
 
     load({
       condominioId,
       reset: true,
-      filters: backendStatus ? { status: backendStatus } : {}
+      filters: {}, // <-- SEM status sempre
     });
-  }, [condominioId, activeKey, TABS, load]);
+  }, [condominioId, load]);
 
   const handleTabClick = useCallback((tabKey) => setActiveKey(tabKey), []);
 
+  // const handleRefresh = useCallback(() => {
+  //   if (!condominioId) return;
+  //   const t = TABS.find((x) => x.key === activeKey);
+  //   load({
+  //     condominioId,
+  //     reset: true,
+  //     filters: { status: t?.status ?? undefined },
+  //   });
+  // }, [condominioId, activeKey, TABS, load]);
+
   const handleRefresh = useCallback(() => {
     if (!condominioId) return;
-    const t = TABS.find((x) => x.key === activeKey);
-    load({
-      condominioId,
-      reset: true,
-      filters: { status: t?.status ?? undefined },
-    });
-  }, [condominioId, activeKey, TABS, load]);
+    load({ condominioId, reset: true, filters: {} }); // <-- SEM status sempre
+  }, [condominioId, load]);
 
   const handleToggleStatus = useCallback(
     async (activity) => {
@@ -446,7 +530,7 @@ const ListaAtividades = ({ onEdit }) => {
         // 🔥 SEMPRE cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
-          dataReferencia: hoje.toISOString().split('T')[0], // Data de HOJE
+          dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
           completedAt: null,
         };
 
@@ -525,7 +609,12 @@ const ListaAtividades = ({ onEdit }) => {
       {/* Abas */}
       <TabWrapper>
         {TABS.map((t) => (
-          <StyledTab key={t.key} $isActive={activeKey === t.key} color={t.color} onClick={() => handleTabClick(t.key)}>
+          <StyledTab
+            key={t.key}
+            $isActive={activeKey === t.key}
+            color={t.color}
+            onClick={() => handleTabClick(t.key)}
+          >
             <TabCircle color={t.color} />
             {t.label}
           </StyledTab>
@@ -557,15 +646,31 @@ const ListaAtividades = ({ onEdit }) => {
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            {filteredItems.length ? `${filteredItems.length} atividades` : "Sem atividades"}
+            {filteredItems.length
+              ? `${filteredItems.length} atividades`
+              : "Sem atividades"}
           </Typography>
         </Paper>
 
-        <Stack direction="row" spacing={1} sx={{ width: isSmall ? "100%" : "auto" }}>
-          <Button onClick={handleRefresh} startIcon={<RefreshIcon />} variant="outlined" fullWidth={isSmall}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ width: isSmall ? "100%" : "auto" }}
+        >
+          <Button
+            onClick={handleRefresh}
+            startIcon={<RefreshIcon />}
+            variant="outlined"
+            fullWidth={isSmall}
+          >
             Atualizar
           </Button>
-          <Button variant="text" sx={{ color: "#EA6037" }} startIcon={<BuildIcon />} fullWidth={isSmall}>
+          <Button
+            variant="text"
+            sx={{ color: "#EA6037" }}
+            startIcon={<BuildIcon />}
+            fullWidth={isSmall}
+          >
             Filtros
           </Button>
         </Stack>
@@ -600,7 +705,11 @@ const ListaAtividades = ({ onEdit }) => {
           )}
         </>
       ) : (
-        <Typography variant="h6" color="text.secondary" sx={{ mt: 4, textAlign: "center" }}>
+        <Typography
+          variant="h6"
+          color="text.secondary"
+          sx={{ mt: 4, textAlign: "center" }}
+        >
           Não há atividades para mostrar neste filtro.
         </Typography>
       )}
