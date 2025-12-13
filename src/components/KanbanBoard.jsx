@@ -106,41 +106,94 @@ const atividadeHistoricoToList = (a) => {
 };
 
 /**
- * inferStatus: coluna do Kanban para HOJE
+ * Funções auxiliares para datas
+ */
+const parseDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return normalizeDate(value);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : normalizeDate(d);
+};
+
+const isSameDay = (a, b) => {
+  const dateA = parseDate(a);
+  const dateB = parseDate(b);
+  if (!dateA || !dateB) return false;
+  return dateA.getTime() === dateB.getTime();
+};
+
+/**
+ * Retorna o histórico mais recente de HOJE apenas
+ * Se não tiver histórico hoje, retorna null
+ */
+const getUltimoHistoricoHoje = (atividade) => {
+  if (!Array.isArray(atividade.historico) || !atividade.historico.length) {
+    return null;
+  }
+
+  const hoje = todayDate();
+  const historicosHoje = atividade.historico.filter((h) => {
+    const dataHist = parseDate(h.dataReferencia);
+    return dataHist && isSameDay(dataHist, hoje);
+  });
+
+  if (!historicosHoje.length) return null;
+
+  return historicosHoje.reduce((maisRecente, atual) => {
+    const atualTime = new Date(atual.dataReferencia).getTime();
+    const maisRecenteTime = new Date(maisRecente.dataReferencia).getTime();
+    return atualTime > maisRecenteTime ? atual : maisRecente;
+  }, historicosHoje[0]);
+};
+
+/**
+ * inferStatus: coluna do Kanban para HOJE baseado APENAS no histórico de HOJE
  *  - PROXIMAS: não é esperado hoje e nunca foi feito
- *  - HISTORICO: já tem FEITO (hoje ou em outra data)
- *  - EM_ANDAMENTO: esperado hoje e hoje está EM_ANDAMENTO
- *  - PENDENTE: esperado hoje e não está feito / em andamento
+ *  - HISTORICO: tem FEITO no histórico de HOJE
+ *  - EM_ANDAMENTO: tem EM_ANDAMENTO no histórico de HOJE
+ *  - PENDENTE: é esperado hoje mas não tem registro OU tem PENDENTE hoje
  */
 const inferStatus = (a) => {
   try {
     const hoje = todayDate();
     const task = atividadeToTask(a);
-    if (!task) return "PENDENTE"; // fallback
+    if (!task) return "PENDENTE";
 
-    const historico = atividadeHistoricoToList(a);
-    const statusDia = getStatusNoDia(task, historico, hoje);
+    // Usar APENAS o último histórico de HOJE
+    const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+
+    // Se tem histórico HOJE, usa ele
+    if (ultimoHistoricoHoje) {
+      switch (String(ultimoHistoricoHoje.status || "").toUpperCase()) {
+        case "FEITO":
+          return "HISTORICO";
+        case "EM_ANDAMENTO":
+          return "EM_ANDAMENTO";
+        case "PENDENTE":
+        default:
+          return "PENDENTE";
+      }
+    }
+
+    // Não tem histórico HOJE: decide se é esperado hoje
+    const historicoList = atividadeHistoricoToList(a);
+    const statusDia = getStatusNoDia(task, historicoList, hoje);
 
     if (!statusDia.esperadoHoje) {
-      if (historico.some((h) => h.status === "FEITO")) return "HISTORICO";
-      return "PROXIMAS";
+      // Não é esperado hoje
+      // Verifica se já foi FEITO em QUALQUER data (para ir para Histórico)
+      return historicoList.some((h) => h.status === "FEITO")
+        ? "HISTORICO"
+        : "PROXIMAS";
     }
 
-    switch (String(statusDia.statusHoje).toUpperCase()) {
-      case "FEITO":
-        return "HISTORICO";
-      case "EM_ANDAMENTO":
-        return "EM_ANDAMENTO";
-      default:
-        return "PENDENTE";
-    }
-  } catch {
+    // É esperado hoje mas não tem registro (primeira vez hoje)
+    return "PENDENTE";
+  } catch (error) {
+    console.error("Erro em inferStatus:", error);
     return "PENDENTE";
   }
 };
-
-const isRunning = (statusDia) =>
-  statusDia && String(statusDia.statusHoje).toUpperCase() === "EM_ANDAMENTO";
 
 /* ---------- estilos ---------- */
 const KanbanContainer = styled(Box)(({ theme }) => ({
@@ -330,9 +383,7 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <CardMiddleElement>
-          <LowPriorityIcon
-            sx={{ mr: 1, fontSize: 16, color: "text.secondary" }}
-          />
+          <LowPriorityIcon sx={{ mr: 1, fontSize: 16, color: "text.secondary" }} />
           <CardLabel>Condomínio:</CardLabel>
           <CardContentTx>{condLabel}</CardContentTx>
         </CardMiddleElement>
@@ -344,9 +395,7 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
         <CardMiddleElement>
           <CardLabel>Data Prevista:</CardLabel>
-          <CardContentTx>
-            {formatDateTime(activity?.expectedDate)}
-          </CardContentTx>
+          <CardContentTx>{formatDateTime(activity?.expectedDate)}</CardContentTx>
         </CardMiddleElement>
       </Box>
 
@@ -424,39 +473,24 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 export default function KanbanBoard({ onEdit }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // usar empresaItems que contém TODAS atividades da empresa (sem filtro por status)
   const {
-    items,
-    loading,
-    error,
-    nextCursor,
-    load,
-    loadMore,
+    empresaItems,
+    empresaLoading,
+    empresaError,
+    loadEmpresa,
     updateAtividade,
+    empresaId,
     condominioId,
   } = useAtividades();
 
-  const KANBAN_FILTERS = { q: "", prioridade: null, status: null };
-
-  // load inicial: traz TODAS as atividades do condomínio, sem filtro de status
+  // Carregar todas as atividades da empresa quando o componente montar
   useEffect(() => {
-    if (!condominioId) return;
-
-    // se não quiser recarregar sempre, mantém esse if
-    // if (items && items.length) return;
-
-    load({
-      condominioId,
-      reset: true,
-      filters: KANBAN_FILTERS, // <- força sem status
-    });
-  }, [condominioId, load]);
-
-  // carrega TODAS as páginas automaticamente
-  useEffect(() => {
-    if (!loading && nextCursor) {
-      loadMore();
+    if (empresaId && condominioId) {
+      loadEmpresa({ reset: true, filters: {} }); // sem filtro = todas atividades
     }
-  }, [loading, nextCursor, loadMore]);
+  }, [empresaId, condominioId, loadEmpresa]);
 
   // colunas fixas por CODE
   const columns = useMemo(
@@ -477,21 +511,18 @@ export default function KanbanBoard({ onEdit }) {
   const closeFilters = () => setAnchorEl(null);
 
   const [filters, setFilters] = useState({
-    statuses: new Set(ALL_STATUSES), // todos selecionados
+    statuses: new Set(ALL_STATUSES), // todos selecionados por padrão
     start: "", // "YYYY-MM-DD"
     end: "",
   });
 
   // data base para período (prioridade: expectedDate > startAt > createdAt)
-  const scheduleDate = (a) =>
-    a?.expectedDate || a?.startAt || a?.createdAt || null;
+  const scheduleDate = (a) => a?.expectedDate || a?.startAt || a?.createdAt || null;
 
   const passesFilters = useCallback(
     (a) => {
       const code = inferStatus(a);
-      const allowed = filters.statuses.size
-        ? filters.statuses
-        : new Set(ALL_STATUSES);
+      const allowed = filters.statuses.size ? filters.statuses : new Set(ALL_STATUSES);
       if (!allowed.has(code)) return false;
 
       const dStr = scheduleDate(a);
@@ -500,8 +531,7 @@ export default function KanbanBoard({ onEdit }) {
       const d = new Date(dStr);
       if (Number.isNaN(d.getTime())) return true;
 
-      if (filters.start && d < new Date(`${filters.start}T00:00:00`))
-        return false;
+      if (filters.start && d < new Date(`${filters.start}T00:00:00`)) return false;
       if (filters.end && d > new Date(`${filters.end}T23:59:59`)) return false;
 
       return true;
@@ -523,17 +553,24 @@ export default function KanbanBoard({ onEdit }) {
 
   const periodLabel = useMemo(() => {
     if (!filters.start && !filters.end) return "Período";
-    const fmt = (s) =>
-      s ? new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR") : "";
-    return `${fmt(filters.start)}${
-      filters.start && filters.end ? " — " : ""
-    }${fmt(filters.end)}`;
+    const fmt = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR") : "");
+    return `${fmt(filters.start)}${filters.start && filters.end ? " — " : ""}${fmt(
+      filters.end
+    )}`;
   }, [filters.start, filters.end]);
 
-  // aplica filtros
+  // Processar itens para manter apenas histórico de HOJE
+  const processedItems = useMemo(() => {
+    return (empresaItems || []).map((a) => {
+      const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
+      return { ...a, historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [] };
+    });
+  }, [empresaItems]);
+
+  // aplicar filtros de UI nos itens processados
   const filteredItems = useMemo(
-    () => (items || []).filter(passesFilters),
-    [items, passesFilters]
+    () => processedItems.filter(passesFilters),
+    [processedItems, passesFilters]
   );
 
   // bucketização por coluna
@@ -546,10 +583,7 @@ export default function KanbanBoard({ onEdit }) {
     };
     filteredItems.forEach((a) => {
       const code = inferStatus(a);
-      const key =
-        code && Object.prototype.hasOwnProperty.call(bucket, code)
-          ? code
-          : "PENDENTE";
+      const key = code && Object.prototype.hasOwnProperty.call(bucket, code) ? code : "PENDENTE";
       bucket[key].push(a);
     });
     return bucket;
@@ -564,7 +598,6 @@ export default function KanbanBoard({ onEdit }) {
         } else if (type === "to_done") {
           await updateAtividade(activity.id, patchForColumn("HISTORICO"));
         } else if (type === "view") {
-          // aqui você pode abrir drawer/modal de detalhes
           console.log("view activity", activity);
         }
       } catch (e) {
@@ -582,8 +615,7 @@ export default function KanbanBoard({ onEdit }) {
       const to = result.destination.droppableId;
       if (from === to) return;
 
-      // não faz sentido "mandar para PROXIMAS" via DnD,
-      // porque PROXIMAS é derivado da frequência/datas.
+      // PROXIMAS é derivado de frequência/datas
       if (to === "PROXIMAS") return;
 
       const fromList = dataByColumn[from] || [];
@@ -602,7 +634,7 @@ export default function KanbanBoard({ onEdit }) {
   return (
     <KanbanContainer>
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Quadro de atividades
+        Quadro de atividades (Todas)
       </Typography>
 
       {/* Header + Filtros */}
@@ -661,9 +693,7 @@ export default function KanbanBoard({ onEdit }) {
               size="small"
               fullWidth
               value={filters.start}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, start: e.target.value }))
-              }
+              onChange={(e) => setFilters((f) => ({ ...f, start: e.target.value }))}
               InputLabelProps={{ shrink: true }}
             />
             <TextField
@@ -672,9 +702,7 @@ export default function KanbanBoard({ onEdit }) {
               size="small"
               fullWidth
               value={filters.end}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, end: e.target.value }))
-              }
+              onChange={(e) => setFilters((f) => ({ ...f, end: e.target.value }))}
               InputLabelProps={{ shrink: true }}
             />
           </Stack>
@@ -699,12 +727,7 @@ export default function KanbanBoard({ onEdit }) {
             ))}
           </FormGroup>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            justifyContent="space-between"
-            mt={1}
-          >
+          <Stack direction="row" spacing={1} justifyContent="space-between" mt={1}>
             <Button size="small" onClick={clearFilters}>
               Limpar
             </Button>
@@ -721,13 +744,13 @@ export default function KanbanBoard({ onEdit }) {
       </Box>
 
       {/* Conteúdo */}
-      {loading && !items.length ? (
+      {empresaLoading && !(empresaItems || []).length ? (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
         </Stack>
-      ) : error ? (
+      ) : empresaError ? (
         <Typography color="error" sx={{ textAlign: "center", mt: 4 }}>
-          {error}
+          {empresaError}
         </Typography>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
@@ -736,17 +759,17 @@ export default function KanbanBoard({ onEdit }) {
               const colLabel = statusLabel(col.code);
               const colColor = statusColor(col.code);
               const list = dataByColumn[col.code] || [];
+              const count = list.length;
 
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
-                    <Column
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                    >
+                    <Column ref={provided.innerRef} {...provided.droppableProps}>
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
-                        <Typography>{colLabel}</Typography>
+                        <Typography>
+                          {colLabel} ({count})
+                        </Typography>
                       </ColumnHeaderStatusSpan>
 
                       {list.length > 0 ? (
@@ -778,19 +801,11 @@ export default function KanbanBoard({ onEdit }) {
                           color="text.secondary"
                           sx={{ textAlign: "center", mt: 2 }}
                         >
-                          Não há atividades para mostrar
+                          Não há atividades nesta coluna
                         </Typography>
                       )}
 
                       {provided.placeholder}
-
-                      {/* {col.code === "PENDENTE" && nextCursor && (
-                        <Stack alignItems="center" sx={{ mt: 2 }}>
-                          <Button onClick={loadMore} variant="outlined">
-                            Carregar mais
-                          </Button>
-                        </Stack>
-                      )} */}
                     </Column>
                   )}
                 </Droppable>

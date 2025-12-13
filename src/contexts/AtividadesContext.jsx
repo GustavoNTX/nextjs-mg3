@@ -39,9 +39,8 @@ const startOfDayBrasilia = () => {
 const todayISOBrasilia = () =>
   startOfDayBrasilia().toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-
 const todayISOFortaleza = () =>
-  startOfDayFortaleza().toISOString().slice(0, 10);
+  startOfDayBrasilia().toISOString().slice(0, 10);
 
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
@@ -132,6 +131,18 @@ export function AtividadesProvider({ children }) {
     return params.toString();
   };
 
+  // normaliza histórico para manter apenas o mais recente
+  const normalizeHistorico = (atividade) => {
+    if (!Array.isArray(atividade.historico) || !atividade.historico.length)
+      return atividade;
+    const lastHist = atividade.historico.reduce((prev, curr) => {
+      return new Date(curr.dataReferencia) > new Date(prev.dataReferencia)
+        ? curr
+        : prev;
+    });
+    return { ...atividade, historico: [lastHist] };
+  };
+
   const load = useCallback(
     async ({
       empresaId: emp,
@@ -182,14 +193,19 @@ export function AtividadesProvider({ children }) {
         });
         if (!res.ok) throw new Error("Falha ao carregar atividades");
         const json = await res.json();
-        setItems((old) => (reset ? json.items : [...old, ...json.items]));
+
+        setItems((old) =>
+          reset
+            ? json.items.map(normalizeHistorico)
+            : [...old, ...json.items.map(normalizeHistorico)]
+        );
         setNextCursor(json.nextCursor ?? null);
 
         if (reset) {
           setTotalAtividadesNosCondominios(
             Number.isFinite(json.totalAtividadesNosCondominios)
               ? json.totalAtividadesNosCondominios
-              : json.total ?? 0 // Fallback para json.total ou 0 se o campo específico não vier
+              : json.total ?? 0
           );
         }
       } catch (e) {
@@ -249,7 +265,7 @@ export function AtividadesProvider({ children }) {
         if (!res.ok) throw new Error("Falha ao carregar atividades da empresa");
         const json = await res.json();
         setEmpresaItems((old) =>
-          reset ? json.items : [...old, ...json.items]
+          reset ? json.items.map(normalizeHistorico) : [...old, ...json.items.map(normalizeHistorico)]
         );
         setEmpresaNextCursor(json.nextCursor ?? null);
       } catch (e) {
@@ -309,18 +325,17 @@ export function AtividadesProvider({ children }) {
         const okCondo = created.condominioId === condominioIdRef.current;
         const okStatus = !f?.status || created.status === f.status;
         const okPri = !f?.prioridade || created.prioridade === f.prioridade;
-        return okCondo && okStatus && okPri ? [created, ...old] : old;
+        return okCondo && okStatus && okPri ? [normalizeHistorico(created), ...old] : old;
       });
 
       setEmpresaItems((old) => {
-        if (!old?.length) return [created];
+        if (!old?.length) return [normalizeHistorico(created)];
         const exists = old.some((item) => item.id === created.id);
         if (exists)
-          return old.map((item) => (item.id === created.id ? created : item));
-        return [created, ...old];
+          return old.map((item) => (item.id === created.id ? normalizeHistorico(created) : item));
+        return [normalizeHistorico(created), ...old];
       });
 
-      // Se a atividade criada bate com os filtros, incrementa o total
       const f = filtersRef.current;
       const okCondo = created.condominioId === condominioIdRef.current;
       const okStatus = !f?.status || created.status === f.status;
@@ -329,10 +344,9 @@ export function AtividadesProvider({ children }) {
         setTotalAtividadesNosCondominios((t) => t + 1);
       }
 
-      // refresh notificações
       try {
         await loadNotifications();
-      } catch {}
+      } catch { }
       return created;
     },
     [fetchWithAuth, resolveEmpresaId]
@@ -343,10 +357,7 @@ export function AtividadesProvider({ children }) {
       const emp = empresaIdRef.current ?? (await resolveEmpresaId());
       const existing = items.find((i) => i.id === id);
       const condo =
-        data?.condominioId ??
-        existing?.condominioId ??
-        fallbackCondominioId ??
-        condominioIdRef.current;
+        data?.condominioId ?? existing?.condominioId ?? fallbackCondominioId ?? condominioIdRef.current;
 
       if (!emp) throw new Error("empresaId ausente.");
       if (!condo) throw new Error("condominioId ausente.");
@@ -364,19 +375,58 @@ export function AtividadesProvider({ children }) {
         try {
           const err = await res.json();
           if (err?.error) msg = err.error;
-        } catch {}
+        } catch { }
         throw new Error(msg);
       }
 
       const updated = await res.json();
-      setItems((old) => old.map((it) => (it.id === id ? updated : it)));
-      setEmpresaItems((old) => old.map((it) => (it.id === id ? updated : it)));
 
-      // refresh notificações
+      const normalizeUpdated = (atividade) => {
+        if (!Array.isArray(atividade.historico) || !atividade.historico.length) return atividade;
+        const lastHist = atividade.historico.reduce((prev, curr) => {
+          return new Date(curr.dataReferencia) > new Date(prev.dataReferencia) ? curr : prev;
+        });
+        return { ...atividade, historico: [lastHist] };
+      };
+
+      const normalizedUpdated = normalizeUpdated(updated);
+
+      // 🔥 NOVA LÓGICA: Filtrar após atualização
+      const currentFilters = filtersRef.current;
+      const itemBelongsToCurrentFilter = (item) => {
+        // Se temos filtro de status, verifica
+        if (currentFilters?.status) {
+          const itemStatus = inferStatus(item); // Usa a mesma lógica
+          return itemStatus === currentFilters.status;
+        }
+        return true;
+      };
+
+      // Atualiza items (lista do condomínio)
+      setItems((old) => {
+        // Remove a atividade atualizada
+        const withoutUpdated = old.filter((it) => it.id !== id);
+
+        // Se ainda pertence aos filtros atuais, adiciona de volta
+        if (itemBelongsToCurrentFilter(normalizedUpdated)) {
+          return withoutUpdated.map((it) =>
+            it.id === id ? normalizedUpdated : it
+          );
+        }
+
+        // Se não pertence, remove completamente
+        return withoutUpdated;
+      });
+
+      // Atualiza empresaItems (lista global da empresa)
+      setEmpresaItems((old) =>
+        old.map((it) => it.id === id ? normalizedUpdated : it)
+      );
+
       try {
         await loadNotifications();
-      } catch {}
-      return updated;
+      } catch { }
+      return normalizedUpdated;
     },
     [fetchWithAuth, items, resolveEmpresaId]
   );
@@ -386,9 +436,7 @@ export function AtividadesProvider({ children }) {
       const emp = empresaIdRef.current ?? (await resolveEmpresaId());
       const existing = items.find((i) => i.id === id);
       const condo =
-        existing?.condominioId ??
-        fallbackCondominioId ??
-        condominioIdRef.current;
+        existing?.condominioId ?? fallbackCondominioId ?? condominioIdRef.current;
 
       if (!emp) throw new Error("empresaId ausente.");
       if (!condo) throw new Error("condominioId ausente.");
@@ -408,24 +456,21 @@ export function AtividadesProvider({ children }) {
       setItems((old) => old.filter((it) => it.id !== id));
       setEmpresaItems((old) => old.filter((it) => it.id !== id));
 
-      // Apenas decrementa se o item removido estava na lista (items)
       if (existing) {
         setTotalAtividadesNosCondominios((t) => (t > 0 ? t - 1 : 0));
       }
 
-      // refresh notificações
       try {
         await loadNotifications();
-      } catch {}
+      } catch { }
     },
     [fetchWithAuth, items, resolveEmpresaId]
   );
 
   // --- NOTIFICAÇÕES: dismiss/snooze local por usuário/empresa/condo ---
   const scopeKey = useCallback(() => {
-    return `${user?.id || "anon"}:${empresaIdRef.current || "-"}:${
-      condominioIdRef.current || "-"
-    }`;
+    return `${user?.id || "anon"}:${empresaIdRef.current || "-"}:${condominioIdRef.current || "-"
+      }`;
   }, [user]);
   const readDismissMap = () => {
     try {
@@ -437,14 +482,14 @@ export function AtividadesProvider({ children }) {
   const writeDismissMap = (map) => {
     try {
       localStorage.setItem("notif.dismiss", JSON.stringify(map));
-    } catch {}
+    } catch { }
   };
   const dismissNotification = useCallback(
     (key, untilISO) => {
       const map = readDismissMap();
       const scope = scopeKey();
       const scoped = map[scope] || {};
-      scoped[key] = untilISO || todayISOFortaleza(); // padrão: hoje
+      scoped[key] = untilISO || todayISOFortaleza();
       map[scope] = scoped;
       writeDismissMap(map);
       setNotifications((old) =>
@@ -459,37 +504,28 @@ export function AtividadesProvider({ children }) {
       setNotifError(null);
       setNotifLoading(true);
       try {
-
         const emp = empresaIdRef.current ?? (await resolveEmpresaId());
         const params = new URLSearchParams({
           empresaId: emp,
           leadDays: String(Number(leadDays) || 0),
         });
-
         const res = await fetchWithAuth(
           `/api/atividades/notifications?${params.toString()}`,
           { cache: "no-store" }
         );
-
         if (!res.ok) throw new Error("Falha ao carregar notificações");
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.items ?? [];
 
-        // aplica dismiss local por usuário/empresa/condomínio (escopo completo)
-        const scope = `${user?.id || "anon"}:${emp}:${
-          condominioIdRef.current || "-"
-        }`;
-
+        const scope = `${user?.id || "anon"}:${emp}:${condominioIdRef.current || "-"}`;
         const map = readDismissMap();
         const dismissed = map[scope] || {};
         const todayISO = todayISOBrasilia();
-
         const filtered = arr.filter((n) => {
           const k = `${n.atividadeId}|${n.when}|${n.dueDateISO}`;
           const until = dismissed[k];
           return !until || String(until) < todayISO;
         });
-
         setNotifications(filtered);
       } catch (e) {
         setNotifications([]);
@@ -501,7 +537,6 @@ export function AtividadesProvider({ children }) {
     [fetchWithAuth, resolveEmpresaId, user]
   );
 
-  // recarregar ao trocar condo/empresa
   useEffect(() => {
     if (empresaId && condominioId) loadNotifications();
   }, [empresaId, condominioId, loadNotifications]);
@@ -527,21 +562,15 @@ export function AtividadesProvider({ children }) {
     };
   }, [loadNotifications]);
 
-  // Status centralizado por atividade usando frequência + histórico
-  // Saída: "PROXIMAS" | "EM_ANDAMENTO" | "PENDENTE" | "HISTORICO"
   const inferStatus = (it) => {
     try {
-      // data de referência = hoje em Fortaleza, mas como Date simples
-      const hojeISO = todayISOFortaleza(); // "YYYY-MM-DD"
+      const hojeISO = todayISOFortaleza();
       const hoje = new Date(hojeISO);
 
-      // TaskLike que o helper espera
       const task = {
         id: it.id,
         name: it.name,
-        // no molde o campo é "frequencia"
         frequency: it.frequencia || it.frequency || "Não se repete",
-        // âncora: expectedDate, senão createdAt
         startDate:
           (it.expectedDate instanceof Date
             ? it.expectedDate.toISOString()
@@ -550,38 +579,27 @@ export function AtividadesProvider({ children }) {
             ? it.createdAt.toISOString()
             : it.createdAt) ||
           hoje.toISOString(),
-        // se em algum momento você tiver data de entrega do condomínio aqui,
-        // dá pra passar como buildingDeliveryDate também
-        // buildingDeliveryDate: it.condominio?.dataEntrega?.toISOString(),
       };
 
-      // HistoricoLike[]
       const historico = Array.isArray(it.historico)
         ? it.historico.map((h) => ({
-            atividadeId: it.id,
-            dataReferencia:
-              h.dataReferencia instanceof Date
-                ? h.dataReferencia.toISOString()
-                : h.dataReferencia,
-            status: h.status,
-            completedAt:
-              h.completedAt instanceof Date
-                ? h.completedAt.toISOString()
-                : h.completedAt ?? null,
-            observacoes: h.observacoes ?? null,
-          }))
+          atividadeId: it.id,
+          dataReferencia:
+            h.dataReferencia instanceof Date
+              ? h.dataReferencia.toISOString()
+              : h.dataReferencia,
+          status: h.status,
+          completedAt:
+            h.completedAt instanceof Date
+              ? h.completedAt.toISOString()
+              : h.completedAt ?? null,
+          observacoes: h.observacoes ?? null,
+        }))
         : [];
 
       const statusDia = getStatusNoDia(task, historico, hoje);
 
-      // Mapeia para os buckets usados no dashboard
-      // PROXIMAS: não é esperado hoje e ainda não foi feito em nenhum dia
-      // HISTORICO: já foi FEITO (ou hoje, ou em algum dia anterior)
-      // EM_ANDAMENTO: esperado hoje + EM_ANDAMENTO
-      // PENDENTE: esperado hoje mas não feito (PENDENTE / SEM_REGISTRO / etc)
-
       if (!statusDia.esperadoHoje) {
-        // se já existe algum FEITO no histórico => já virou histórico
         if (historico.some((h) => h.status === "FEITO")) return "HISTORICO";
         return "PROXIMAS";
       }
@@ -592,16 +610,13 @@ export function AtividadesProvider({ children }) {
         case "EM_ANDAMENTO":
           return "EM_ANDAMENTO";
         default:
-          // PENDENTE, SEM_REGISTRO, ATRASADO, etc caem aqui
           return "PENDENTE";
       }
     } catch (e) {
-      // fallback conservador
       return "PENDENTE";
     }
   };
 
-  // stats centralizados via inferStatus
   const stats = useMemo(() => {
     const out = {
       PROXIMAS: 0,

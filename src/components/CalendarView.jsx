@@ -147,7 +147,7 @@ export default function CalendarView({ onEdit }) {
   // muda view programaticamente
   useEffect(() => {
     const api = calendarRef.current?.getApi();
-    if (api) api.changeView(currentView);
+    if (!api) return; Promise.resolve().then(() => { api.changeView(currentView); });
   }, [currentView]);
 
   // mapeia atividades -> eventos do FullCalendar (usando buildCalendar)
