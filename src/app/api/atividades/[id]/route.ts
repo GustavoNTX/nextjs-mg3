@@ -140,8 +140,9 @@ function toFrequenciaEnum(input?: string | null): Frequencia | undefined {
 /** ---------- GET ---------- */
 export async function GET(
   req: NextRequest,
-  ctx: { params: { id: string } },
+  ctx: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await ctx.params;
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
