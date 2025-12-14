@@ -8,6 +8,7 @@ import { FREQUENCIAS } from "@/utils/frequencias";
 import type { Frequencia } from "@/utils/frequencias";
 import { agendarProximaExecucaoSeFeito } from "@/services/atividade";
 import { HistoricoStatus } from "@prisma/client";
+import { startOfDayFortaleza } from "@/utils/date-utils";
 
 import {
   TaskLike,
@@ -80,7 +81,7 @@ function ensureEmpresaMatch(authEmpresaId: string, inputEmpresaId?: string) {
 const dateFlex = () =>
   z.preprocess(
     (v) => (v == null || v === "" ? null : new Date(v as any)),
-    z.date().nullable(),
+    z.date().nullable()
   );
 
 /** --- normalizadores/enums --- */
@@ -135,13 +136,13 @@ function toFrequenciaEnum(input?: string | null): Frequencia | undefined {
   if (!FREQUENCIA_SET.has(s)) return undefined;
   return s as Frequencia;
 }
-
 /** ---------- GET ---------- */
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> },
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params;
+
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
     if (!authEmpresaId) return json(401, { error: "Não autorizado" });
@@ -149,26 +150,19 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const empresaId = searchParams.get("empresaId") ?? undefined;
     const condominioId = searchParams.get("condominioId") ?? undefined;
+
     ensureEmpresaMatch(authEmpresaId, empresaId);
     if (!condominioId)
       return json(400, { error: "condominioId é obrigatório" });
 
-    const { id } = await ctx.params;
-
     const item = await prisma.atividade.findFirst({
       where: { id, empresaId: authEmpresaId, condominioId },
       include: {
-        condominio: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        historico: {
-          orderBy: { dataReferencia: "asc" },
-        },
+        condominio: { select: { id: true, name: true } },
+        historico: { orderBy: { dataReferencia: "asc" } },
       },
     });
+
     if (!item) return json(404, { error: "Atividade não encontrada" });
 
     const toDate = (v: string | null) => (v ? new Date(v) : null);
@@ -176,24 +170,94 @@ export async function GET(
     const to = toDate(searchParams.get("to"));
     const wantStats = searchParams.get("stats") === "1";
 
+    // ✅ HOJE CANÔNICO (00:00 Fortaleza => 03:00Z)
+    const hoje = startOfDayFortaleza(new Date());
+    const todayKey = hoje.toISOString().slice(0, 10);
+
+    // ✅ startDate CANÔNICO (senão frequência cai no dia errado)
+    const startDateBase = item.expectedDate ?? item.createdAt;
+    const startDate = startOfDayFortaleza(startDateBase).toISOString();
+
     const taskLike: TaskLike = {
       id: item.id,
       name: item.name,
       frequency: item.frequencia,
-      startDate: (item.expectedDate ?? item.createdAt).toISOString(),
+      startDate,
     };
 
-    const historicoLike: HistoricoLike[] = item.historico.map((h) => ({
-      atividadeId: item.id,
-      dataReferencia: h.dataReferencia.toISOString(),
-      status: h.status,
-      completedAt: h.completedAt?.toISOString() ?? null,
-      observacoes: h.observacoes ?? null,
-    }));
+    // helper: diz se um registro já é "canônico" (dataReferencia == início do dia Fortaleza)
+    const isCanonical = (dt: Date) =>
+      dt.getTime() === startOfDayFortaleza(dt).getTime();
 
-    const hoje = new Date();
+    // ✅ NORMALIZA histórico pra "1 por dia"
+    // regra:
+    // - se existir canônico no dia, ele ganha sempre
+    // - se não existir canônico, fica o mais recente (maior timestamp) do dia
+    const byDay = new Map<
+      string,
+      { raw: any; dayRefISO: string; canonical: boolean; rawTime: number }
+    >();
 
-    const statusHoje = getStatusNoDia(taskLike, historicoLike, hoje);
+    for (const h of item.historico || []) {
+      const dayRef = startOfDayFortaleza(h.dataReferencia);
+      const dayKey = dayRef.toISOString().slice(0, 10);
+
+      const candidate = {
+        raw: h,
+        dayRefISO: dayRef.toISOString(),
+        canonical: isCanonical(h.dataReferencia),
+        rawTime: new Date(h.dataReferencia).getTime(),
+      };
+
+      const prev = byDay.get(dayKey);
+
+      if (!prev) {
+        byDay.set(dayKey, candidate);
+        continue;
+      }
+
+      // se já temos canônico, não troca por lixo
+      if (prev.canonical) continue;
+
+      // se o novo é canônico, troca
+      if (candidate.canonical) {
+        byDay.set(dayKey, candidate);
+        continue;
+      }
+
+      // nenhum é canônico: fica o mais recente
+      if (candidate.rawTime > prev.rawTime) {
+        byDay.set(dayKey, candidate);
+      }
+    }
+
+    const historicoLike: HistoricoLike[] = Array.from(byDay.values())
+      .sort(
+        (a, b) =>
+          new Date(a.dayRefISO).getTime() - new Date(b.dayRefISO).getTime()
+      )
+      .map(({ raw, dayRefISO }) => ({
+        atividadeId: item.id,
+        dataReferencia: dayRefISO, // ✅ canônico por dia
+        status: raw.status,
+        completedAt: raw.completedAt
+          ? new Date(raw.completedAt).toISOString()
+          : null,
+        observacoes: raw.observacoes ?? null,
+      }));
+
+    // ✅ status do dia calculado com base no "dia Fortaleza"
+    let statusHoje = getStatusNoDia(taskLike, historicoLike, hoje);
+
+    // ✅ sua regra: se já tem evento HOJE no histórico, ele manda no status
+    const histHoje = byDay.get(todayKey)?.raw;
+    if (histHoje) {
+      statusHoje = {
+        ...statusHoje,
+        esperadoHoje: true,
+        statusHoje: histHoje.status,
+      };
+    }
 
     if (!wantStats || !from || !to) {
       return NextResponse.json({
@@ -214,7 +278,7 @@ export async function GET(
         AND h."dataReferencia" BETWEEN ${from}::date AND ${to}::date
     `;
 
-    const byDay = await prisma.$queryRaw<
+    const byDayStats = await prisma.$queryRaw<
       Array<{ dia: Date; feitos: number; nao_feitos: number; total: number }>
     >`
       SELECT
@@ -242,23 +306,20 @@ export async function GET(
       },
     });
 
-    const calendario = buildCalendar(
-      taskLike,
-      historicoLike,
-      from,
-      to,
-    ).map((d) => ({
-      data: d.data,
-      esperado: d.esperado,
-      status: d.status,
-    }));
+    const calendario = buildCalendar(taskLike, historicoLike, from, to).map(
+      (d) => ({
+        data: d.data,
+        esperado: d.esperado,
+        status: d.status,
+      })
+    );
 
     return NextResponse.json({
       atividade: item,
       range: { from, to },
       statusHoje,
       stats: summary ?? { feitos: 0, nao_feitos: 0, total: 0 },
-      byDay,
+      byDay: byDayStats,
       historico: historicoRange,
       calendario,
     });
@@ -270,7 +331,14 @@ export async function GET(
 }
 
 /** ---------- PATCH ---------- */
-const HIST_SET = new Set(["PENDENTE", "ATRASADO", "EM_ANDAMENTO", "PROXIMAS", "FEITO", "PULADO"]);
+const HIST_SET = new Set([
+  "PENDENTE",
+  "ATRASADO",
+  "EM_ANDAMENTO",
+  "PROXIMAS",
+  "FEITO",
+  "PULADO",
+]);
 
 function toHistoricoStatus(input: unknown) {
   if (typeof input !== "string") return undefined;
@@ -294,7 +362,7 @@ const patchSchema = z
 
     dataReferencia: z.preprocess(
       (v) => (v ? new Date(v as any) : undefined),
-      z.date().optional(),
+      z.date().optional()
     ),
     status: z.union([z.boolean(), z.string()]).optional(),
     completedAt: dateFlex().optional(),
@@ -303,7 +371,7 @@ const patchSchema = z
 
 export async function PATCH(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> },
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
@@ -324,6 +392,7 @@ export async function PATCH(
         error: "Validação falhou",
         issues: parsed.error.flatten(),
       });
+
     const b = parsed.data as any;
 
     ensureEmpresaMatch(authEmpresaId, b.empresaId);
@@ -337,19 +406,25 @@ export async function PATCH(
       },
       select: { id: true },
     });
+
     if (!molde)
       return json(404, {
         error: "Atividade não encontrada ou fora do escopo.",
       });
 
-    // ---------- HISTÓRICO ----------
+    // ---------- HISTÓRICO (1 por dia - Fortaleza) ----------
     const histStatus = toHistoricoStatus(b.status);
     if (b.dataReferencia || histStatus || b.completedAt) {
-      const dataRef = new Date(b.dataReferencia ?? new Date());
+      // normaliza SEMPRE pro começo do dia (Fortaleza)
+      const base = b.dataReferencia ? new Date(b.dataReferencia) : new Date();
+      const dataRef = startOfDayFortaleza(base); // tem que devolver 03:00Z do dia
 
       const hist = await prisma.atividadeHistorico.upsert({
         where: {
-          atividadeId_dataReferencia: { atividadeId: id, dataReferencia: dataRef },
+          atividadeId_dataReferencia: {
+            atividadeId: id,
+            dataReferencia: dataRef, // chave canônica do dia
+          },
         },
         update: {
           ...(histStatus ? { status: histStatus } : {}),
@@ -369,21 +444,41 @@ export async function PATCH(
         },
         select: {
           id: true,
+          atividadeId: true,
           dataReferencia: true,
           status: true,
           completedAt: true,
+          userId: true,
           observacoes: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
 
-      // se marcou como FEITO, agenda próxima execução
       await agendarProximaExecucaoSeFeito({
         atividadeId: id,
         dataReferencia: hist.dataReferencia,
         status: hist.status,
       });
 
-      return NextResponse.json({ ok: true, historico: hist });
+      // busca a atividade SEM trazer historico (pra não pegar lixo antigo)
+      const item = await prisma.atividade.findFirst({
+        where: {
+          id,
+          empresaId: authEmpresaId,
+          condominioId: b.condominioId,
+          deletedAt: null,
+        },
+        include: {
+          condominio: { select: { id: true, name: true } },
+        },
+      });
+
+      // retorna o histórico atualizado do dia (o que acabou de ser gravado)
+      return NextResponse.json({
+        ...item,
+        historico: [hist],
+      });
     }
 
     // ---------- MOLDE ----------
@@ -411,9 +506,11 @@ export async function PATCH(
       where: { id, empresaId: authEmpresaId, condominioId: b.condominioId },
       data: d,
     });
+
     if (upd.count === 0) {
       return json(404, {
-        error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
+        error:
+          "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
       });
     }
 
@@ -421,6 +518,7 @@ export async function PATCH(
       where: { id },
       include: { condominio: { select: { id: true, name: true } } },
     });
+
     return NextResponse.json(item);
   } catch (e: any) {
     if (e?.status) return e;
@@ -434,7 +532,7 @@ export async function PATCH(
 /** ---------- DELETE ---------- */
 export async function DELETE(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> },
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const authEmpresaId = await getEmpresaIdFromRequest();
@@ -455,7 +553,8 @@ export async function DELETE(
     });
     if (deleted.count === 0) {
       return json(404, {
-        error: "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
+        error:
+          "Atividade não encontrada ou fora do seu escopo (empresa/condomínio).",
       });
     }
     return new NextResponse(null, { status: 204 });

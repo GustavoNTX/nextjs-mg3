@@ -36,11 +36,9 @@ const startOfDayBrasilia = () => {
   return nowInBrasilia;
 };
 
-const todayISOBrasilia = () =>
-  startOfDayBrasilia().toISOString().slice(0, 10); // "YYYY-MM-DD"
+const todayISOBrasilia = () => startOfDayBrasilia().toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-const todayISOFortaleza = () =>
-  startOfDayBrasilia().toISOString().slice(0, 10);
+const todayISOFortaleza = () => startOfDayBrasilia().toISOString().slice(0, 10);
 
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
@@ -265,7 +263,9 @@ export function AtividadesProvider({ children }) {
         if (!res.ok) throw new Error("Falha ao carregar atividades da empresa");
         const json = await res.json();
         setEmpresaItems((old) =>
-          reset ? json.items.map(normalizeHistorico) : [...old, ...json.items.map(normalizeHistorico)]
+          reset
+            ? json.items.map(normalizeHistorico)
+            : [...old, ...json.items.map(normalizeHistorico)]
         );
         setEmpresaNextCursor(json.nextCursor ?? null);
       } catch (e) {
@@ -325,14 +325,18 @@ export function AtividadesProvider({ children }) {
         const okCondo = created.condominioId === condominioIdRef.current;
         const okStatus = !f?.status || created.status === f.status;
         const okPri = !f?.prioridade || created.prioridade === f.prioridade;
-        return okCondo && okStatus && okPri ? [normalizeHistorico(created), ...old] : old;
+        return okCondo && okStatus && okPri
+          ? [normalizeHistorico(created), ...old]
+          : old;
       });
 
       setEmpresaItems((old) => {
         if (!old?.length) return [normalizeHistorico(created)];
         const exists = old.some((item) => item.id === created.id);
         if (exists)
-          return old.map((item) => (item.id === created.id ? normalizeHistorico(created) : item));
+          return old.map((item) =>
+            item.id === created.id ? normalizeHistorico(created) : item
+          );
         return [normalizeHistorico(created), ...old];
       });
 
@@ -346,7 +350,7 @@ export function AtividadesProvider({ children }) {
 
       try {
         await loadNotifications();
-      } catch { }
+      } catch {}
       return created;
     },
     [fetchWithAuth, resolveEmpresaId]
@@ -357,7 +361,10 @@ export function AtividadesProvider({ children }) {
       const emp = empresaIdRef.current ?? (await resolveEmpresaId());
       const existing = items.find((i) => i.id === id);
       const condo =
-        data?.condominioId ?? existing?.condominioId ?? fallbackCondominioId ?? condominioIdRef.current;
+        data?.condominioId ??
+        existing?.condominioId ??
+        fallbackCondominioId ??
+        condominioIdRef.current;
 
       if (!emp) throw new Error("empresaId ausente.");
       if (!condo) throw new Error("condominioId ausente.");
@@ -375,16 +382,19 @@ export function AtividadesProvider({ children }) {
         try {
           const err = await res.json();
           if (err?.error) msg = err.error;
-        } catch { }
+        } catch {}
         throw new Error(msg);
       }
 
       const updated = await res.json();
 
       const normalizeUpdated = (atividade) => {
-        if (!Array.isArray(atividade.historico) || !atividade.historico.length) return atividade;
+        if (!Array.isArray(atividade.historico) || !atividade.historico.length)
+          return atividade;
         const lastHist = atividade.historico.reduce((prev, curr) => {
-          return new Date(curr.dataReferencia) > new Date(prev.dataReferencia) ? curr : prev;
+          return new Date(curr.dataReferencia) > new Date(prev.dataReferencia)
+            ? curr
+            : prev;
         });
         return { ...atividade, historico: [lastHist] };
       };
@@ -404,28 +414,27 @@ export function AtividadesProvider({ children }) {
 
       // Atualiza items (lista do condomínio)
       setItems((old) => {
-        // Remove a atividade atualizada
-        const withoutUpdated = old.filter((it) => it.id !== id);
+        const exists = old.some((it) => it.id === id);
+        const next = exists
+          ? old.map((it) => (it.id === id ? normalizedUpdated : it))
+          : [normalizedUpdated, ...old];
 
-        // Se ainda pertence aos filtros atuais, adiciona de volta
-        if (itemBelongsToCurrentFilter(normalizedUpdated)) {
-          return withoutUpdated.map((it) =>
-            it.id === id ? normalizedUpdated : it
-          );
-        }
-
-        // Se não pertence, remove completamente
-        return withoutUpdated;
+        return itemBelongsToCurrentFilter(normalizedUpdated)
+          ? next
+          : next.filter((it) => it.id !== id);
       });
 
       // Atualiza empresaItems (lista global da empresa)
-      setEmpresaItems((old) =>
-        old.map((it) => it.id === id ? normalizedUpdated : it)
-      );
+      setEmpresaItems((old) => {
+        const exists = old.some((it) => it.id === id);
+        return exists
+          ? old.map((it) => (it.id === id ? normalizedUpdated : it))
+          : [normalizedUpdated, ...old];
+      });
 
       try {
         await loadNotifications();
-      } catch { }
+      } catch {}
       return normalizedUpdated;
     },
     [fetchWithAuth, items, resolveEmpresaId]
@@ -436,7 +445,9 @@ export function AtividadesProvider({ children }) {
       const emp = empresaIdRef.current ?? (await resolveEmpresaId());
       const existing = items.find((i) => i.id === id);
       const condo =
-        existing?.condominioId ?? fallbackCondominioId ?? condominioIdRef.current;
+        existing?.condominioId ??
+        fallbackCondominioId ??
+        condominioIdRef.current;
 
       if (!emp) throw new Error("empresaId ausente.");
       if (!condo) throw new Error("condominioId ausente.");
@@ -462,15 +473,16 @@ export function AtividadesProvider({ children }) {
 
       try {
         await loadNotifications();
-      } catch { }
+      } catch {}
     },
     [fetchWithAuth, items, resolveEmpresaId]
   );
 
   // --- NOTIFICAÇÕES: dismiss/snooze local por usuário/empresa/condo ---
   const scopeKey = useCallback(() => {
-    return `${user?.id || "anon"}:${empresaIdRef.current || "-"}:${condominioIdRef.current || "-"
-      }`;
+    return `${user?.id || "anon"}:${empresaIdRef.current || "-"}:${
+      condominioIdRef.current || "-"
+    }`;
   }, [user]);
   const readDismissMap = () => {
     try {
@@ -482,7 +494,7 @@ export function AtividadesProvider({ children }) {
   const writeDismissMap = (map) => {
     try {
       localStorage.setItem("notif.dismiss", JSON.stringify(map));
-    } catch { }
+    } catch {}
   };
   const dismissNotification = useCallback(
     (key, untilISO) => {
@@ -517,7 +529,9 @@ export function AtividadesProvider({ children }) {
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.items ?? [];
 
-        const scope = `${user?.id || "anon"}:${emp}:${condominioIdRef.current || "-"}`;
+        const scope = `${user?.id || "anon"}:${emp}:${
+          condominioIdRef.current || "-"
+        }`;
         const map = readDismissMap();
         const dismissed = map[scope] || {};
         const todayISO = todayISOBrasilia();
@@ -583,18 +597,18 @@ export function AtividadesProvider({ children }) {
 
       const historico = Array.isArray(it.historico)
         ? it.historico.map((h) => ({
-          atividadeId: it.id,
-          dataReferencia:
-            h.dataReferencia instanceof Date
-              ? h.dataReferencia.toISOString()
-              : h.dataReferencia,
-          status: h.status,
-          completedAt:
-            h.completedAt instanceof Date
-              ? h.completedAt.toISOString()
-              : h.completedAt ?? null,
-          observacoes: h.observacoes ?? null,
-        }))
+            atividadeId: it.id,
+            dataReferencia:
+              h.dataReferencia instanceof Date
+                ? h.dataReferencia.toISOString()
+                : h.dataReferencia,
+            status: h.status,
+            completedAt:
+              h.completedAt instanceof Date
+                ? h.completedAt.toISOString()
+                : h.completedAt ?? null,
+            observacoes: h.observacoes ?? null,
+          }))
         : [];
 
       const statusDia = getStatusNoDia(task, historico, hoje);

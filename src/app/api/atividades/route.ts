@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { startOfDayFortaleza_get, addDaysFortaleza } from "@/utils/date-utils";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -141,96 +142,67 @@ export async function GET(req: NextRequest) {
     ensureEmpresaOptionalMatch(authEmpresaId, empresaId);
 
     const condominioId = searchParams.get("condominioId");
-    await assertCondominioDaEmpresa(condominioId, authEmpresaId, {
-      required: false,
-    });
+    await assertCondominioDaEmpresa(condominioId, authEmpresaId, { required: false });
 
     const q = (searchParams.get("q") ?? "").trim();
     const prioridadeRaw = searchParams.get("prioridade") ?? undefined;
     const statusRaw = (searchParams.get("status") ?? "").trim().toUpperCase();
 
-    const take = Math.min(
-      Math.max(Number(searchParams.get("take") ?? 50), 1),
-      200
-    );
+    const take = Math.min(Math.max(Number(searchParams.get("take") ?? 50), 1), 200);
     const cursor = searchParams.get("cursor") ?? undefined;
 
-    const from = searchParams.get("from")
-      ? new Date(searchParams.get("from")!)
-      : null;
-    const to = searchParams.get("to")
-      ? new Date(searchParams.get("to")!)
-      : null;
+    const from = searchParams.get("from") ? new Date(searchParams.get("from")!) : null;
+    const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : null;
     const leadDays = Number(searchParams.get("leadDays") || "7");
 
-    const hoje = startOfDayFortaleza();
-    const amanha = addDays(hoje, 1);
+    // ✅ HOJE / AMANHÃ canônico (Fortaleza)
+    const hoje = startOfDayFortaleza(new Date());         // => 03:00Z
+    const amanha = addDaysFortaleza(hoje, 1);             // => 03:00Z do dia seguinte
 
-    // ---- Mapeia status -> filtro em AtividadeHistorico
+    // ---- status filter no WHERE (se você quiser manter)
     let historicoWhere: any | undefined = undefined;
 
     switch (statusRaw) {
       case "EM_ANDAMENTO":
       case "EM ANDAMENTO":
-        historicoWhere = {
-          status: { not: "FEITO" },
-          dataReferencia: { gte: hoje, lt: amanha },
-        };
+        historicoWhere = { status: "EM_ANDAMENTO", dataReferencia: { gte: hoje, lt: amanha } };
         break;
-      case "PROXIMAS":
-      case "PRÓXIMAS":
-        historicoWhere = {
-          status: "PENDENTE",
-          dataReferencia: {
-            gt: hoje,
-            lte: addDays(hoje, Number.isFinite(leadDays) ? leadDays : 7),
-          },
-        };
-        break;
+
       case "PENDENTE":
-        historicoWhere = {
-          OR: [{ status: "PENDENTE" }, { status: "ATRASADO" }],
-          ...(from && to
-            ? { dataReferencia: { gte: from, lte: to } }
-            : { dataReferencia: { lt: hoje } }),
-        };
+        historicoWhere = { status: { in: ["PENDENTE", "ATRASADO"] }, dataReferencia: { gte: hoje, lt: amanha } };
         break;
+
       case "HISTORICO":
       case "HISTÓRICO":
         historicoWhere = {
           status: { in: ["FEITO", "PULADO"] },
-          ...(from && to
-            ? { dataReferencia: { gte: from, lte: to } }
-            : { dataReferencia: { gte: addDays(hoje, -90), lt: amanha } }),
+          dataReferencia: { gte: addDaysFortaleza(hoje, -90), lt: amanha },
         };
         break;
-      case "FEITO":
-      case "PULADO":
-      case "ATRASADO":
-        historicoWhere = {
-          status: statusRaw,
-          ...(from && to ? { dataReferencia: { gte: from, lte: to } } : {}),
-        };
+
+      case "PROXIMAS":
+      case "PRÓXIMAS":
+        // se você NÃO pré-cria futuro, isso aqui via histórico não faz sentido
+        // deixa sem filtro ou trate por expectedDate
+        historicoWhere = undefined;
         break;
+
       default:
-        historicoWhere =
-          from && to ? { dataReferencia: { gte: from, lte: to } } : undefined;
+        historicoWhere = from && to ? { dataReferencia: { gte: from, lte: to } } : undefined;
     }
 
-    // Filtro textual
     const textWhere = q
       ? {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { model: { contains: q, mode: "insensitive" } },
-          { type: { contains: q, mode: "insensitive" } },
-          { location: { contains: q, mode: "insensitive" } },
-          { tags: { has: q } },
-        ],
-      }
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { model: { contains: q, mode: "insensitive" } },
+            { type: { contains: q, mode: "insensitive" } },
+            { location: { contains: q, mode: "insensitive" } },
+            { tags: { has: q } },
+          ],
+        }
       : {};
 
-    // WHERE para a listagem (filtrado)
     const whereAtividade: any = {
       empresaId: authEmpresaId,
       ...(condominioId ? { condominioId } : {}),
@@ -242,22 +214,20 @@ export async function GET(req: NextRequest) {
       ...(historicoWhere ? { historico: { some: historicoWhere } } : {}),
     };
 
-    // Promessas paralelas: itens + total filtrado + total bruto do condomínio (quando houver)
-    const itemsPromise = prisma.atividade.findMany({
+    const items = await prisma.atividade.findMany({
       where: whereAtividade,
       take,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      distinct: ["id"], // evita duplicação por join com historico
+      distinct: ["id"],
       include: {
         condominio: { select: { id: true, name: true } },
+
+        // ✅ PARA O KANBAN: ÚLTIMO EVENTO DE HOJE (1 só)
         historico: {
-          where:
-            historicoWhere ??
-            (from && to
-              ? { dataReferencia: { gte: from, lte: to } }
-              : { dataReferencia: { gte: addDays(hoje, -30) } }),
-          orderBy: { dataReferencia: "asc" },
+          where: { dataReferencia: { gte: hoje, lt: amanha } },
+          orderBy: { dataReferencia: "desc" },
+          take: 1,
           select: {
             id: true,
             dataReferencia: true,
@@ -270,32 +240,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const totalFiltradoPromise = prisma.atividade.count({
-      where: whereAtividade,
-    });
+    const total = await prisma.atividade.count({ where: whereAtividade });
 
-    const totalAtividadesCondominioPromise = condominioId
-      ? prisma.atividade.count({
-        where: { empresaId: authEmpresaId, condominioId, deletedAt: null },
-      })
-      : Promise.resolve(null);
+    const totalAtividadesNosCondominios = condominioId
+      ? await prisma.atividade.count({ where: { empresaId: authEmpresaId, condominioId, deletedAt: null } })
+      : null;
 
-    const [items, total, totalAtividadesNosCondominios] = await Promise.all([
-      itemsPromise,
-      totalFiltradoPromise,
-      totalAtividadesCondominioPromise,
-    ]);
-
-    const nextCursor =
-      items.length === take ? items[items.length - 1].id : null;
+    const nextCursor = items.length === take ? items[items.length - 1].id : null;
 
     return NextResponse.json({
       items,
       nextCursor,
       total,
-      ...(condominioId
-        ? { totalAtividadesNosCondominios, totalAtividadeCondominhos: totalAtividadesNosCondominios }
-        : {}),
+      ...(condominioId ? { totalAtividadesNosCondominios } : {}),
     });
   } catch (e: any) {
     if (e?.status) return e;

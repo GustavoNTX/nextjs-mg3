@@ -315,10 +315,19 @@ const CardStatusCircle = styled("div")(({ $color }) => ({
   marginRight: 6,
 }));
 
+function dayRefFortalezaISO() {
+  const d = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
+  );
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString(); // vai dar 03:00Z (meia-noite Fortaleza)
+}
+
 /* ---------- payload ao soltar em coluna (histórico do dia) ---------- */
 function patchForColumn(code) {
   const now = new Date();
-  const dataRefISO = now.toISOString();
+   const dataRefISO = dayRefFortalezaISO(); // <-- aqui
+
 
   // aqui usamos status do HISTÓRICO: PENDENTE / EM_ANDAMENTO / FEITO
   switch (code) {
@@ -383,7 +392,9 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <CardMiddleElement>
-          <LowPriorityIcon sx={{ mr: 1, fontSize: 16, color: "text.secondary" }} />
+          <LowPriorityIcon
+            sx={{ mr: 1, fontSize: 16, color: "text.secondary" }}
+          />
           <CardLabel>Condomínio:</CardLabel>
           <CardContentTx>{condLabel}</CardContentTx>
         </CardMiddleElement>
@@ -395,7 +406,9 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
         <CardMiddleElement>
           <CardLabel>Data Prevista:</CardLabel>
-          <CardContentTx>{formatDateTime(activity?.expectedDate)}</CardContentTx>
+          <CardContentTx>
+            {formatDateTime(activity?.expectedDate)}
+          </CardContentTx>
         </CardMiddleElement>
       </Box>
 
@@ -517,12 +530,15 @@ export default function KanbanBoard({ onEdit }) {
   });
 
   // data base para período (prioridade: expectedDate > startAt > createdAt)
-  const scheduleDate = (a) => a?.expectedDate || a?.startAt || a?.createdAt || null;
+  const scheduleDate = (a) =>
+    a?.expectedDate || a?.startAt || a?.createdAt || null;
 
   const passesFilters = useCallback(
     (a) => {
       const code = inferStatus(a);
-      const allowed = filters.statuses.size ? filters.statuses : new Set(ALL_STATUSES);
+      const allowed = filters.statuses.size
+        ? filters.statuses
+        : new Set(ALL_STATUSES);
       if (!allowed.has(code)) return false;
 
       const dStr = scheduleDate(a);
@@ -531,7 +547,8 @@ export default function KanbanBoard({ onEdit }) {
       const d = new Date(dStr);
       if (Number.isNaN(d.getTime())) return true;
 
-      if (filters.start && d < new Date(`${filters.start}T00:00:00`)) return false;
+      if (filters.start && d < new Date(`${filters.start}T00:00:00`))
+        return false;
       if (filters.end && d > new Date(`${filters.end}T23:59:59`)) return false;
 
       return true;
@@ -553,17 +570,21 @@ export default function KanbanBoard({ onEdit }) {
 
   const periodLabel = useMemo(() => {
     if (!filters.start && !filters.end) return "Período";
-    const fmt = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR") : "");
-    return `${fmt(filters.start)}${filters.start && filters.end ? " — " : ""}${fmt(
-      filters.end
-    )}`;
+    const fmt = (s) =>
+      s ? new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR") : "";
+    return `${fmt(filters.start)}${
+      filters.start && filters.end ? " — " : ""
+    }${fmt(filters.end)}`;
   }, [filters.start, filters.end]);
 
   // Processar itens para manter apenas histórico de HOJE
   const processedItems = useMemo(() => {
     return (empresaItems || []).map((a) => {
       const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
-      return { ...a, historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [] };
+      return {
+        ...a,
+        historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [],
+      };
     });
   }, [empresaItems]);
 
@@ -583,7 +604,10 @@ export default function KanbanBoard({ onEdit }) {
     };
     filteredItems.forEach((a) => {
       const code = inferStatus(a);
-      const key = code && Object.prototype.hasOwnProperty.call(bucket, code) ? code : "PENDENTE";
+      const key =
+        code && Object.prototype.hasOwnProperty.call(bucket, code)
+          ? code
+          : "PENDENTE";
       bucket[key].push(a);
     });
     return bucket;
@@ -594,9 +618,17 @@ export default function KanbanBoard({ onEdit }) {
     async (type, activity) => {
       try {
         if (type === "to_in_progress") {
-          await updateAtividade(activity.id, patchForColumn("EM_ANDAMENTO"));
+          await updateAtividade(
+            activity.id,
+            patchForColumn("EM_ANDAMENTO"),
+            activity.condominioId
+          );
         } else if (type === "to_done") {
-          await updateAtividade(activity.id, patchForColumn("HISTORICO"));
+          await updateAtividade(
+            moved.id,
+            patchForColumn(to),
+            moved.condominioId
+          );
         } else if (type === "view") {
           console.log("view activity", activity);
         }
@@ -693,7 +725,9 @@ export default function KanbanBoard({ onEdit }) {
               size="small"
               fullWidth
               value={filters.start}
-              onChange={(e) => setFilters((f) => ({ ...f, start: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, start: e.target.value }))
+              }
               InputLabelProps={{ shrink: true }}
             />
             <TextField
@@ -702,7 +736,9 @@ export default function KanbanBoard({ onEdit }) {
               size="small"
               fullWidth
               value={filters.end}
-              onChange={(e) => setFilters((f) => ({ ...f, end: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, end: e.target.value }))
+              }
               InputLabelProps={{ shrink: true }}
             />
           </Stack>
@@ -727,7 +763,12 @@ export default function KanbanBoard({ onEdit }) {
             ))}
           </FormGroup>
 
-          <Stack direction="row" spacing={1} justifyContent="space-between" mt={1}>
+          <Stack
+            direction="row"
+            spacing={1}
+            justifyContent="space-between"
+            mt={1}
+          >
             <Button size="small" onClick={clearFilters}>
               Limpar
             </Button>
@@ -764,7 +805,10 @@ export default function KanbanBoard({ onEdit }) {
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
-                    <Column ref={provided.innerRef} {...provided.droppableProps}>
+                    <Column
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                    >
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
                         <Typography>
