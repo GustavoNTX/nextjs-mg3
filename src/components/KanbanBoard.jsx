@@ -71,7 +71,7 @@ const statusColor = (code) => {
   return "#9e9e9e";
 };
 
-// prioridade só pra chipzinho
+// prioridade só pra chipzinho (se não usa, pode remover)
 const priorityColor = (p) => {
   const s = String(p || "").toUpperCase();
   if (s.includes("URG")) return "#b71c1c";
@@ -326,8 +326,7 @@ function dayRefFortalezaISO() {
 /* ---------- payload ao soltar em coluna (histórico do dia) ---------- */
 function patchForColumn(code) {
   const now = new Date();
-   const dataRefISO = dayRefFortalezaISO(); // <-- aqui
-
+  const dataRefISO = dayRefFortalezaISO();
 
   // aqui usamos status do HISTÓRICO: PENDENTE / EM_ANDAMENTO / FEITO
   switch (code) {
@@ -392,9 +391,7 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <CardMiddleElement>
-          <LowPriorityIcon
-            sx={{ mr: 1, fontSize: 16, color: "text.secondary" }}
-          />
+          <LowPriorityIcon sx={{ mr: 1, fontSize: 16, color: "text.secondary" }} />
           <CardLabel>Condomínio:</CardLabel>
           <CardContentTx>{condLabel}</CardContentTx>
         </CardMiddleElement>
@@ -406,9 +403,7 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
         <CardMiddleElement>
           <CardLabel>Data Prevista:</CardLabel>
-          <CardContentTx>
-            {formatDateTime(activity?.expectedDate)}
-          </CardContentTx>
+          <CardContentTx>{formatDateTime(activity?.expectedDate)}</CardContentTx>
         </CardMiddleElement>
       </Box>
 
@@ -487,7 +482,6 @@ export default function KanbanBoard({ onEdit }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // usar empresaItems que contém TODAS atividades da empresa (sem filtro por status)
   const {
     empresaItems,
     empresaLoading,
@@ -498,14 +492,29 @@ export default function KanbanBoard({ onEdit }) {
     condominioId,
   } = useAtividades();
 
-  // Carregar todas as atividades da empresa quando o componente montar
+  // >>> NOVO: força "limpar board" enquanto a API recarrega
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
+    let alive = true;
+
     if (empresaId && condominioId) {
-      load({ condominioId, reset: true, filters: {} }); // sem filtro = todas atividades
+      setRefreshing(true);
+
+      Promise.resolve(load({ condominioId, reset: true, filters: {} }))
+        .catch(() => {})
+        .finally(() => {
+          if (alive) setRefreshing(false);
+        });
     }
+
+    return () => {
+      alive = false;
+    };
   }, [empresaId, condominioId, load]);
 
-  // colunas fixas por CODE
+  const isLoadingBoard = refreshing || empresaLoading;
+
   const columns = useMemo(
     () => [
       { code: "PROXIMAS" },
@@ -524,12 +533,11 @@ export default function KanbanBoard({ onEdit }) {
   const closeFilters = () => setAnchorEl(null);
 
   const [filters, setFilters] = useState({
-    statuses: new Set(ALL_STATUSES), // todos selecionados por padrão
-    start: "", // "YYYY-MM-DD"
+    statuses: new Set(ALL_STATUSES),
+    start: "",
     end: "",
   });
 
-  // data base para período (prioridade: expectedDate > startAt > createdAt)
   const scheduleDate = (a) =>
     a?.expectedDate || a?.startAt || a?.createdAt || null;
 
@@ -542,7 +550,7 @@ export default function KanbanBoard({ onEdit }) {
       if (!allowed.has(code)) return false;
 
       const dStr = scheduleDate(a);
-      if (!dStr) return true; // sem data, ignora período
+      if (!dStr) return true;
 
       const d = new Date(dStr);
       if (Number.isNaN(d.getTime())) return true;
@@ -577,24 +585,28 @@ export default function KanbanBoard({ onEdit }) {
     }${fmt(filters.end)}`;
   }, [filters.start, filters.end]);
 
+  // >>> NOVO: zera itens enquanto carrega (some o dado velho)
+  const itemsForBoard = useMemo(
+    () => (isLoadingBoard ? [] : empresaItems ?? []),
+    [isLoadingBoard, empresaItems]
+  );
+
   // Processar itens para manter apenas histórico de HOJE
   const processedItems = useMemo(() => {
-    return (empresaItems || []).map((a) => {
+    return itemsForBoard.map((a) => {
       const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
       return {
         ...a,
         historico: ultimoHistoricoHoje ? [ultimoHistoricoHoje] : [],
       };
     });
-  }, [empresaItems]);
+  }, [itemsForBoard]);
 
-  // aplicar filtros de UI nos itens processados
   const filteredItems = useMemo(
     () => processedItems.filter(passesFilters),
     [processedItems, passesFilters]
   );
 
-  // bucketização por coluna
   const dataByColumn = useMemo(() => {
     const bucket = {
       PROXIMAS: [],
@@ -624,10 +636,11 @@ export default function KanbanBoard({ onEdit }) {
             activity.condominioId
           );
         } else if (type === "to_done") {
+          // >>> FIX: moved/to não existem aqui
           await updateAtividade(
-            moved.id,
-            patchForColumn(to),
-            moved.condominioId
+            activity.id,
+            patchForColumn("HISTORICO"),
+            activity.condominioId
           );
         } else if (type === "view") {
           console.log("view activity", activity);
@@ -763,12 +776,7 @@ export default function KanbanBoard({ onEdit }) {
             ))}
           </FormGroup>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            justifyContent="space-between"
-            mt={1}
-          >
+          <Stack direction="row" spacing={1} justifyContent="space-between" mt={1}>
             <Button size="small" onClick={clearFilters}>
               Limpar
             </Button>
@@ -785,7 +793,7 @@ export default function KanbanBoard({ onEdit }) {
       </Box>
 
       {/* Conteúdo */}
-      {empresaLoading && !(empresaItems || []).length ? (
+      {isLoadingBoard ? (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
         </Stack>
@@ -805,10 +813,7 @@ export default function KanbanBoard({ onEdit }) {
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
-                    <Column
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                    >
+                    <Column ref={provided.innerRef} {...provided.droppableProps}>
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
                         <Typography>
