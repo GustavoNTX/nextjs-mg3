@@ -492,7 +492,7 @@ export default function KanbanBoard({ onEdit }) {
     empresaItems,
     empresaLoading,
     empresaError,
-    loadEmpresa,
+    load,
     updateAtividade,
     empresaId,
     condominioId,
@@ -501,9 +501,9 @@ export default function KanbanBoard({ onEdit }) {
   // Carregar todas as atividades da empresa quando o componente montar
   useEffect(() => {
     if (empresaId && condominioId) {
-      loadEmpresa({ reset: true, filters: {} }); // sem filtro = todas atividades
+      load({ condominioId, reset: true, filters: {} }); // sem filtro = todas atividades
     }
-  }, [empresaId, condominioId, loadEmpresa]);
+  }, [empresaId, condominioId, load]);
 
   // colunas fixas por CODE
   const columns = useMemo(
