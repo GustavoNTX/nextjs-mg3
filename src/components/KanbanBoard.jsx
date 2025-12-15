@@ -391,7 +391,9 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <CardMiddleElement>
-          <LowPriorityIcon sx={{ mr: 1, fontSize: 16, color: "text.secondary" }} />
+          <LowPriorityIcon
+            sx={{ mr: 1, fontSize: 16, color: "text.secondary" }}
+          />
           <CardLabel>Condomínio:</CardLabel>
           <CardContentTx>{condLabel}</CardContentTx>
         </CardMiddleElement>
@@ -403,7 +405,9 @@ const KanbanActivityCard = ({ activity, statusCode, onAction, onEdit }) => {
 
         <CardMiddleElement>
           <CardLabel>Data Prevista:</CardLabel>
-          <CardContentTx>{formatDateTime(activity?.expectedDate)}</CardContentTx>
+          <CardContentTx>
+            {formatDateTime(activity?.expectedDate)}
+          </CardContentTx>
         </CardMiddleElement>
       </Box>
 
@@ -483,16 +487,15 @@ export default function KanbanBoard({ onEdit }) {
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
 
   const {
-    empresaItems,
-    empresaLoading,
-    empresaError,
-    load,
+    items,
+    loading,
+    error,
+    loadEmpresa,
     updateAtividade,
     empresaId,
     condominioId,
   } = useAtividades();
 
-  // >>> NOVO: força "limpar board" enquanto a API recarrega
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -501,7 +504,7 @@ export default function KanbanBoard({ onEdit }) {
     if (empresaId && condominioId) {
       setRefreshing(true);
 
-      Promise.resolve(load({ condominioId, reset: true, filters: {} }))
+      Promise.resolve(loadEmpresa({ condominioId, reset: true, filters: {} }))
         .catch(() => {})
         .finally(() => {
           if (alive) setRefreshing(false);
@@ -511,9 +514,9 @@ export default function KanbanBoard({ onEdit }) {
     return () => {
       alive = false;
     };
-  }, [empresaId, condominioId, load]);
+  }, [empresaId, condominioId, loadEmpresa]);
 
-  const isLoadingBoard = refreshing || empresaLoading;
+  const isLoadingBoard = refreshing || loading;
 
   const columns = useMemo(
     () => [
@@ -585,10 +588,9 @@ export default function KanbanBoard({ onEdit }) {
     }${fmt(filters.end)}`;
   }, [filters.start, filters.end]);
 
-  // >>> NOVO: zera itens enquanto carrega (some o dado velho)
   const itemsForBoard = useMemo(
-    () => (isLoadingBoard ? [] : empresaItems ?? []),
-    [isLoadingBoard, empresaItems]
+    () => (isLoadingBoard ? [] : items ?? []),
+    [isLoadingBoard, items]
   );
 
   // Processar itens para manter apenas histórico de HOJE
@@ -776,7 +778,12 @@ export default function KanbanBoard({ onEdit }) {
             ))}
           </FormGroup>
 
-          <Stack direction="row" spacing={1} justifyContent="space-between" mt={1}>
+          <Stack
+            direction="row"
+            spacing={1}
+            justifyContent="space-between"
+            mt={1}
+          >
             <Button size="small" onClick={clearFilters}>
               Limpar
             </Button>
@@ -797,9 +804,9 @@ export default function KanbanBoard({ onEdit }) {
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress />
         </Stack>
-      ) : empresaError ? (
+      ) : error ? (
         <Typography color="error" sx={{ textAlign: "center", mt: 4 }}>
-          {empresaError}
+          {error}
         </Typography>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
@@ -813,7 +820,10 @@ export default function KanbanBoard({ onEdit }) {
               return (
                 <Droppable droppableId={col.code} key={col.code}>
                   {(provided) => (
-                    <Column ref={provided.innerRef} {...provided.droppableProps}>
+                    <Column
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                    >
                       <ColumnHeaderStatusSpan $color={colColor}>
                         <ColumnHeaderStatusCircle $color={colColor} />
                         <Typography>

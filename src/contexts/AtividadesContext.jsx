@@ -223,6 +223,7 @@ export function AtividadesProvider({ children }) {
   const loadEmpresa = useCallback(
     async ({
       empresaId: emp,
+      condominioId: cId,
       filters: f,
       reset = true,
       take = 100,
@@ -248,7 +249,7 @@ export function AtividadesProvider({ children }) {
 
         setEmpresaLoading(true);
 
-        const qs = buildQuery(finalEmpresa, undefined, normalizedFilters, {
+        const qs = buildQuery(finalEmpresa, cId, normalizedFilters, {
           take,
           cursor,
         });
