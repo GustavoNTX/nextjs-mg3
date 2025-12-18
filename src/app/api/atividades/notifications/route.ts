@@ -69,7 +69,7 @@ async function getEmpresaIdFromRequest(): Promise<string | null> {
 
 function ensureEmpresaMatch(
   authEmpresaId: string,
-  inputEmpresaId?: string | null,
+  inputEmpresaId?: string | null
 ) {
   if (!inputEmpresaId) throw json(400, { error: "empresaId é obrigatório" });
   if (authEmpresaId !== inputEmpresaId)
@@ -79,7 +79,7 @@ function ensureEmpresaMatch(
 /* ===== Data (TZ Fortaleza) ===== */
 function startOfDayFortaleza(d: Date | string = new Date()) {
   const x = new Date(
-    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" }),
+    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" })
   );
   x.setHours(0, 0, 0, 0);
   return x;
@@ -124,25 +124,36 @@ type Notification = {
   esperadoNaData?: boolean | null;
 };
 
-/* helpers locais */
+// helpers locais (Fortaleza)
 const toYMD = (d: Date) => d.toISOString().slice(0, 10);
-const sod = (d: Date) => {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-};
 
+// pega um YYYY-MM-DD e transforma em "início do dia Fortaleza" (03:00Z)
 const parseYMD = (ymd: string): Date => {
-  const [y, m, d] = ymd.split("-").map((v) => Number(v));
-  return new Date(Date.UTC(y, m - 1, d));
+  // usar meio-dia UTC evita cair no dia anterior em Fortaleza
+  return startOfDayFortaleza(`${ymd}T12:00:00.000Z`);
 };
 
+// soma dias mantendo a hora canônica (03:00Z)
 const addDays = (date: Date, amount: number): Date => {
   const r = new Date(date);
   r.setUTCDate(r.getUTCDate() + amount);
-  r.setUTCHours(0, 0, 0, 0);
   return r;
 };
+
+// (opcional) substitui sod por Fortaleza
+const sod = (d: Date) => startOfDayFortaleza(d);
+
+// const parseYMD = (ymd: string): Date => {
+//   const [y, m, d] = ymd.split("-").map((v) => Number(v));
+//   return new Date(Date.UTC(y, m - 1, d));
+// };
+
+// const addDays = (date: Date, amount: number): Date => {
+//   const r = new Date(date);
+//   r.setUTCDate(r.getUTCDate() + amount);
+//   r.setUTCHours(0, 0, 0, 0);
+//   return r;
+// };
 
 /* ===== GET /api/atividades/notifications?empresaId&leadDays=1 ===== */
 export async function GET(req: NextRequest) {
@@ -154,7 +165,7 @@ export async function GET(req: NextRequest) {
     const empresaId = searchParams.get("empresaId");
     const leadDays = Math.max(
       0,
-      Number(searchParams.get("leadDays") ?? 1) || 0,
+      Number(searchParams.get("leadDays") ?? 1) || 0
     );
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
@@ -214,7 +225,7 @@ export async function GET(req: NextRequest) {
       const next = getNextDueDate(t as TaskLike, today);
       if (next) {
         const diffDays = Math.floor(
-          (sod(next).getTime() - today.getTime()) / 86400000,
+          (sod(next).getTime() - today.getTime()) / 86400000
         );
         if (diffDays >= 0 && diffDays <= leadDays) {
           out.push({
@@ -304,10 +315,7 @@ export async function GET(req: NextRequest) {
         "Não se repete";
 
       const startSource =
-        (t as any).startDate ??
-        raw.expectedDate ??
-        raw.createdAt ??
-        new Date();
+        (t as any).startDate ?? raw.expectedDate ?? raw.createdAt ?? new Date();
 
       const startDate =
         startSource instanceof Date
@@ -338,7 +346,7 @@ export async function GET(req: NextRequest) {
     const maxDate = addDays(parseYMD(maxISO), 1); // lt max+1
 
     const atividadeIds = Array.from(
-      new Set(itemsOut.map((n) => String(n.atividadeId))),
+      new Set(itemsOut.map((n) => String(n.atividadeId)))
     );
 
     // 3) buscar histórico de todas as atividades notificadas, só nesse range
@@ -365,11 +373,12 @@ export async function GET(req: NextRequest) {
       const list = historicoByAtividade.get(key) ?? [];
       list.push({
         atividadeId: h.atividadeId,
-        dataReferencia: h.dataReferencia.toISOString(),
+        dataReferencia: startOfDayFortaleza(h.dataReferencia).toISOString(),
         status: h.status as any,
         completedAt: h.completedAt?.toISOString() ?? null,
         observacoes: h.observacoes ?? null,
       });
+
       historicoByAtividade.set(key, list);
     }
 
