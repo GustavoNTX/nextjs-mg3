@@ -1,4 +1,3 @@
-// src/app/login/page.jsx - COM BOTÃO DE ALTERAR TEMA NO LOGIN
 "use client";
 
 import { useState, useEffect } from "react";
@@ -41,7 +40,6 @@ export default function LoginPage() {
   const muiTheme = useTheme();
   const { darkMode, toggleDarkMode } = useCustomTheme();
 
-  // Controla a animação do overlay
   useEffect(() => {
     if (darkMode) {
       const timer = setTimeout(() => setShowOverlay(true), 100);
@@ -51,7 +49,6 @@ export default function LoginPage() {
     }
   }, [darkMode]);
 
-  // Mostra tooltip do tema na primeira vez
   useEffect(() => {
     const hasSeenTooltip = localStorage.getItem("has-seen-theme-tooltip");
     if (!hasSeenTooltip) {
@@ -104,7 +101,6 @@ export default function LoginPage() {
 
   const handleToggleTheme = () => {
     toggleDarkMode();
-    // Feedback visual
     if (darkMode) {
       console.log("🎨 Tema alterado para Claro");
     } else {
@@ -136,7 +132,6 @@ export default function LoginPage() {
     );
   }
 
-  // Cores baseadas no tema
   const backgroundColor = muiTheme.palette.background.default;
   const formBackground = muiTheme.palette.background.paper;
   const buttonColor = darkMode ? muiTheme.palette.grey[700] : "#545454";
@@ -156,7 +151,6 @@ export default function LoginPage() {
         position: 'relative',
       }}
     >
-      {/* Botão de alternar tema - TOPO DIREITO */}
       <Tooltip
         title={darkMode ? "Mudar para tema Claro" : "Mudar para tema Escuro"}
         placement="left"
@@ -197,7 +191,6 @@ export default function LoginPage() {
         </IconButton>
       </Tooltip>
 
-      {/* Badge de tema */}
       <Box
         sx={{
           position: 'absolute',
