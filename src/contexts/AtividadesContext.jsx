@@ -660,12 +660,25 @@ export function AtividadesProvider({ children }) {
   }, [items]);
 
   const notifStats = useMemo(() => {
-    const s = { pre: 0, due: 0, overdue: 0, total: 0 };
+    const s = { pre: 0, due: 0, overdue: 0, total: 0, naoFeitasHoje: 0 };
+
+    // Obter data de hoje no formato ISO (Fortaleza)
+    const hojeISO = todayISOFortaleza();
+
     for (const n of notifications) {
       if (n.when === "pre") s.pre++;
       else if (n.when === "due") s.due++;
       else if (n.when === "overdue") s.overdue++;
+
+      // Contar "não feitas hoje": due de hoje que não estão FEITO
+      const isDueToday = n.when === "due" && n.dueDateISO === hojeISO;
+      const isNotDone = !(n.isDoneOnDueDate || n.statusOnDueDate === "FEITO");
+
+      if (isDueToday && isNotDone) {
+        s.naoFeitasHoje++;
+      }
     }
+
     s.total = notifications.length;
     return s;
   }, [notifications]);
