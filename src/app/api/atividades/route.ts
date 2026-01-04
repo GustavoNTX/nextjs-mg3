@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { startOfDayFortaleza_get, addDaysFortaleza } from "@/utils/date-utils";
+import { startOfDayFortaleza, addDaysFortaleza } from "@/utils/date-utils";
+import { APP_TIMEZONE, APP_TIMEZONE_OFFSET } from "@/constants/timezone";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -117,18 +118,7 @@ async function assertCondominioDaEmpresa(
 }
 
 /** -------- datas (TZ Fortaleza) -------- */
-const TZ = "America/Fortaleza";
-function startOfDayFortaleza(d = new Date()) {
-  const local = new Date(d).toLocaleString("en-US", { timeZone: TZ });
-  const dt = new Date(local);
-  dt.setHours(0, 0, 0, 0);
-  return dt;
-}
-function addDays(base: Date, days: number) {
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  return d;
-}
+// Funções importadas de @/utils/date-utils e @/constants/timezone
 
 /** -------- GET (lista) -------- */
 export async function GET(req: NextRequest) {
@@ -353,24 +343,29 @@ export async function POST(req: NextRequest) {
     });
 
     // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
-    const agora = new Date();
+    // Usar início do dia (Fortaleza) para comparação correta
+    const hojeInicio = startOfDayFortaleza(new Date());
+    const amanha = addDaysFortaleza(hojeInicio, 1);
 
     let dataRef: Date;
     if (created.expectedDate) {
-      const d = new Date(created.expectedDate);
-      d.setHours(agora.getHours(), agora.getMinutes(), agora.getSeconds(), agora.getMilliseconds());
-      dataRef = d;
+      // Normalizar para início do dia no timezone correto
+      dataRef = startOfDayFortaleza(new Date(created.expectedDate));
     } else {
-      dataRef = agora;
+      dataRef = hojeInicio;
     }
 
+    // Determinar status baseado na comparação de DIAS, não timestamps
     let status: "PENDENTE" | "ATRASADO" | "EM_ANDAMENTO" | "PROXIMAS" = "PENDENTE";
 
-    if (dataRef.getTime() > agora.getTime()) {
+    if (dataRef.getTime() >= amanha.getTime()) {
+      // Data futura (a partir de amanhã)
       status = "PROXIMAS";
-    } else if (dataRef.getTime() === agora.getTime()) {
-      status = "EM_ANDAMENTO";
-    } else if (dataRef.getTime() < agora.getTime()) {
+    } else if (dataRef.getTime() === hojeInicio.getTime()) {
+      // É hoje - começa como PENDENTE
+      status = "PENDENTE";
+    } else if (dataRef.getTime() < hojeInicio.getTime()) {
+      // Data passada
       status = "ATRASADO";
     }
 

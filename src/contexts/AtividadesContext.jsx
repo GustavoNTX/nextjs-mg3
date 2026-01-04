@@ -15,6 +15,10 @@ import { getStatusNoDia } from "@/utils/atividadeStatus";
 
 const AtividadesContext = createContext(null);
 
+// Timezone unificado para todo o projeto
+const APP_TIMEZONE = "America/Fortaleza";
+const APP_TIMEZONE_OFFSET = "-03:00";
+
 // endpoints comuns p/ descobrir empresa do usuário
 const EMPRESA_ENDPOINTS = ["/api/empresas/minha"];
 
@@ -24,21 +28,32 @@ const normalizeFilters = (value) => ({
   prioridade: value?.prioridade ?? null,
   status: value?.status ?? null,
 });
-const startOfDayBrasilia = () => {
-  // pega "agora" em Brasília
-  const nowInBrasilia = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  );
 
-  // força pra 00:00:00.000 no fuso de Brasília
-  nowInBrasilia.setHours(0, 0, 0, 0);
+/**
+ * Retorna o início do dia (00:00:00) no timezone de Fortaleza
+ */
+const startOfDayFortaleza = (date = new Date()) => {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 
-  return nowInBrasilia;
+  return new Date(`${ymd}T00:00:00${APP_TIMEZONE_OFFSET}`);
 };
 
-const todayISOBrasilia = () => startOfDayBrasilia().toISOString().slice(0, 10); // "YYYY-MM-DD"
-
-const todayISOFortaleza = () => startOfDayBrasilia().toISOString().slice(0, 10);
+/**
+ * Retorna a data atual no formato YYYY-MM-DD no timezone de Fortaleza
+ */
+const todayISOFortaleza = () => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+};
 
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
@@ -535,7 +550,7 @@ export function AtividadesProvider({ children }) {
         }`;
         const map = readDismissMap();
         const dismissed = map[scope] || {};
-        const todayISO = todayISOBrasilia();
+        const todayISO = todayISOFortaleza();
         const filtered = arr.filter((n) => {
           const k = `${n.atividadeId}|${n.when}|${n.dueDateISO}`;
           const until = dismissed[k];
@@ -556,20 +571,20 @@ export function AtividadesProvider({ children }) {
     if (empresaId && condominioId) loadNotifications();
   }, [empresaId, condominioId, loadNotifications]);
 
-  // virada do dia (TZ Fortaleza)
+  // virada do dia (TZ Fortaleza) - recarrega notificações à meia-noite
   useEffect(() => {
     let tm;
     const arm = () => {
-      const now = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
-      );
-      const next = new Date(now);
-      next.setHours(24, 0, 0, 0);
-      const ms = Math.max(next - now + 500, 60_000);
+      // Calcular tempo até meia-noite em Fortaleza
+      const now = new Date();
+      const todayStart = startOfDayFortaleza(now);
+      const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      const msUntilMidnight = Math.max(tomorrowStart.getTime() - now.getTime() + 500, 60_000);
+
       tm = setTimeout(async () => {
         await loadNotifications();
         arm();
-      }, ms);
+      }, msUntilMidnight);
     };
     arm();
     return () => {

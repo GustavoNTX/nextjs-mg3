@@ -1,4 +1,5 @@
 // date-utils.ts
+import { APP_TIMEZONE, APP_TIMEZONE_OFFSET } from "@/constants/timezone";
 
 export function startOfDay(date: Date): Date {
   const d = new Date(date);
@@ -61,64 +62,42 @@ export function proximoDiaUtil(
 }
 
 
-const TZ_FORTALEZA = "America/Fortaleza";
-const OFFSET = "-03:00"; // Fortaleza não tem DST
-
-export function startOfDayFortaleza(dateLike: Date) {
+/**
+ * Retorna o início do dia (00:00:00) no timezone da aplicação (Fortaleza)
+ * Resultado é uma data UTC que representa meia-noite em Fortaleza (03:00Z)
+ */
+export function startOfDayFortaleza(dateLike: Date = new Date()): Date {
   // pega YYYY-MM-DD no fuso de Fortaleza
   const ymd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ_FORTALEZA,
+    timeZone: APP_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(dateLike); // "2025-12-14"
+  }).format(dateLike);
 
   // cria uma data que representa 00:00 Fortaleza (vira 03:00Z)
-  return new Date(`${ymd}T00:00:00${OFFSET}`);
+  return new Date(`${ymd}T00:00:00${APP_TIMEZONE_OFFSET}`);
 }
 
+// Alias para compatibilidade
+export const startOfDayFortaleza_get = startOfDayFortaleza;
 
-function getTzOffsetMinutes(utcDate: Date, tz: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZoneName: "shortOffset",
-  }).formatToParts(utcDate);
-
-  const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-  const m = tzName.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
-  if (!m) return 0;
-
-  const sign = m[1] === "-" ? -1 : 1;
-  const hh = Number(m[2] ?? 0);
-  const mm = Number(m[3] ?? 0);
-  return sign * (hh * 60 + mm);
+/**
+ * Adiciona dias a uma data mantendo o timezone de Fortaleza
+ * Fortaleza não tem DST, então 24h funciona ok
+ */
+export function addDaysFortaleza(dayRef: Date, days: number): Date {
+  return new Date(dayRef.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-export function startOfDayFortaleza_get(date: Date = new Date()) {
-  // pega Y/M/D no fuso Fortaleza
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ_FORTALEZA,
+/**
+ * Retorna a data atual no formato YYYY-MM-DD no timezone de Fortaleza
+ */
+export function todayISOFortaleza(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(date);
-
-  const y = Number(parts.find((p) => p.type === "year")?.value);
-  const m = Number(parts.find((p) => p.type === "month")?.value);
-  const d = Number(parts.find((p) => p.type === "day")?.value);
-
-  // offset naquele dia (pega no "meio do dia" pra evitar treta em troca de offset)
-  const offsetMin = getTzOffsetMinutes(new Date(Date.UTC(y, m - 1, d, 12, 0, 0)), TZ_FORTALEZA);
-
-  // UTC do "00:00 Fortaleza" = UTC(00:00) - offset
-  const utcMillis = Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMin * 60 * 1000;
-  return new Date(utcMillis);
-}
-
-export function addDaysFortaleza(dayRef: Date, days: number) {
-  // Fortaleza não tem DST, então 24h funciona ok aqui
-  return new Date(dayRef.getTime() + days * 24 * 60 * 60 * 1000);
+  }).format(new Date());
 }
