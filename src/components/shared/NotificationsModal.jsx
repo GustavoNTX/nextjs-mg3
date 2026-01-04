@@ -9,7 +9,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  Divider,
   CircularProgress,
   Chip,
   Stack,
@@ -75,45 +74,30 @@ export default function NotificationsModal({ open, onClose }) {
     }).format(new Date());
   }, [open]);
 
-  // Notificações de HOJE (when === "due")
-  const dueToday = useMemo(
-    () =>
-      notifications.filter(
-        (n) => n.when === "due" && n.dueDateISO === todayISO
-      ),
-
-    // console.log("notifications:", notifications)
-    [notifications, todayISO]
-  );
-  const feitasHoje = useMemo(
-    () =>
-      dueToday.filter(
-        (n) => n.isDoneOnDueDate || n.statusOnDueDate === "FEITO"
-      ),
-    [dueToday]
-  );
-
+  // Notificações de HOJE que NÃO foram feitas (when === "due" e não está FEITO)
+  // A API já exclui atividades com status FEITO, então todas as notificações
+  // retornadas são "não feitas"
   const naoFeitasHoje = useMemo(
     () =>
-      dueToday.filter(
-        (n) => !(n.isDoneOnDueDate || n.statusOnDueDate === "FEITO")
+      notifications.filter(
+        (n) =>
+          n.when === "due" &&
+          n.dueDateISO === todayISO &&
+          !(n.isDoneOnDueDate || n.statusOnDueDate === "FEITO")
       ),
-    [dueToday]
+    [notifications, todayISO]
   );
 
-  const renderItem = (n, done) => {
+  const renderItem = (n) => {
     const key = `${n.atividadeId ?? n.title}-${n.dueDateISO}`;
     const primary = n.title || n.nameOnly || "Atividade";
-    const secondary =
-      n.details || (done ? "Concluída hoje" : "Pendente para hoje");
+    const secondary = n.details || "Pendente para hoje";
 
     return (
       <ListItem
         key={key}
         sx={{
-          backgroundColor: done
-            ? alpha(theme.palette.success.main, 0.18)
-            : alpha(theme.palette.warning.main, 0.12),
+          backgroundColor: alpha(theme.palette.warning.main, 0.12),
           borderRadius: 2,
           mb: 1,
           boxShadow: theme.shadows[1],
@@ -133,16 +117,11 @@ export default function NotificationsModal({ open, onClose }) {
           />
           <Chip
             size="small"
-            label={done ? "Feito" : "Pendente"}
+            label="Pendente"
             sx={{
               ml: 2,
-              bgcolor: alpha(
-                done ? theme.palette.success.main : theme.palette.warning.main,
-                0.18
-              ),
-              color: done
-                ? theme.palette.success.main
-                : theme.palette.warning.main,
+              bgcolor: alpha(theme.palette.warning.main, 0.18),
+              color: theme.palette.warning.main,
             }}
           />
         </Box>
@@ -210,45 +189,10 @@ export default function NotificationsModal({ open, onClose }) {
                 }}
               >
                 {naoFeitasHoje.length ? (
-                  naoFeitasHoje.map((n) => renderItem(n, false))
+                  naoFeitasHoje.map((n) => renderItem(n))
                 ) : (
                   <ListItem>
                     <ListItemText primary="Sem pendências para hoje." />
-                  </ListItem>
-                )}
-              </List>
-            </Box>
-            <Divider />
-            {/* Feitas hoje */}
-            <Box>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                sx={{ mb: 1 }}
-              >
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  Feitas hoje
-                </Typography>
-                <Chip
-                  size="small"
-                  label={feitasHoje.length}
-                  color={feitasHoje.length ? "success" : "default"}
-                  variant={feitasHoje.length ? "filled" : "outlined"}
-                />
-              </Stack>
-              <List
-                sx={{
-                  bgcolor: theme.palette.background.default,
-                  borderRadius: 2,
-                  p: 1,
-                }}
-              >
-                {feitasHoje.length ? (
-                  feitasHoje.map((n) => renderItem(n, true))
-                ) : (
-                  <ListItem>
-                    <ListItemText primary="Nada concluído ainda hoje." />
                   </ListItem>
                 )}
               </List>

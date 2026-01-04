@@ -36,10 +36,10 @@ export default function HeaderDesktop({
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  // Count: due + overdue (pré-alerta não polui badge; se quiser incluir, use s.total)
+  // Count: apenas atividades NÃO feitas hoje
   const notificationsCount = useMemo(() => {
-    const s = notifStats || { due: 0, overdue: 0 };
-    return (s.due || 0) + (s.overdue || 0);
+    const s = notifStats || { naoFeitasHoje: 0 };
+    return s.naoFeitasHoje || 0;
   }, [notifStats]);
 
   // carrega na montagem
