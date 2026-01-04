@@ -38,7 +38,7 @@ export default function SelectCondominio({
           name: newValue.name,
           logoUrl: newValue.imageUrl ?? null,
         });
-        router.push(`/cronograma/${newValue.id}`);
+        router.push(`/atividades/${newValue.id}`);
       }}
       isOptionEqualToValue={(o, v) => o.id === v.id}
       getOptionLabel={(o) => o?.name ?? ""}
