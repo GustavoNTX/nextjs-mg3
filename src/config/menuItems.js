@@ -18,7 +18,7 @@ export const menuItems = [
   {
     text: "Lista de Ativos",
     icon: <DescriptionIcon />,
-    path: "/lista-de-ativos", // Adicione os caminhos para navegação
+    path: "/atividades", // Adicione os caminhos para navegação
   },
   {
     text: "Relatórios",

@@ -11,6 +11,8 @@ import {
   TaskLike,
   HistoricoLike,
 } from "@/utils/atividadeStatus";
+import { normalizeFrequency, FREQUENCIAS } from "@/utils/frequencias";
+import { APP_TIMEZONE, APP_TIMEZONE_OFFSET } from "@/constants/timezone";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -78,34 +80,28 @@ function ensureEmpresaMatch(
 
 /* ===== Data (TZ Fortaleza) ===== */
 function startOfDayFortaleza(d: Date | string = new Date()) {
-  const x = new Date(
-    new Date(d).toLocaleString("en-US", { timeZone: "America/Fortaleza" })
-  );
-  x.setHours(0, 0, 0, 0);
-  return x;
+  const date = new Date(d);
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+
+  return new Date(`${ymd}T00:00:00${APP_TIMEZONE_OFFSET}`);
 }
 
-/* ===== Normalização de frequência ===== */
-function normalizeFreq(val?: string | null) {
-  const s = (val || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  if (!s) return "Não se repete";
-  if (/(todo|toda).*(dia)/.test(s) || /diar/.test(s)) return "Diária";
-  if (/seman/.test(s)) return "Semanal";
-  if (/quinzen/.test(s)) return "Quinzenal";
-  if (/mensal|mes/.test(s)) return "Mensal";
-  if (/trimestral|trimestre/.test(s)) return "Trimestral";
-  if (/semestral/.test(s)) return "Semestral";
-  if (/anual|ano/.test(s)) return "Anual";
-  if (/nao se repete|não se repete|unica|única|uma vez|pontual/.test(s))
-    return "Não se repete";
-  return s; // mantém como veio
-}
+/* ===== Verificação de recorrência ===== */
+// Frequências que NÃO são recorrentes
+const NON_RECURRING_FREQUENCIES = new Set([
+  "Não se repete",
+  "Conforme indicação dos fornecedores",
+  "Não aplicável",
+]);
 
-function isRecurring(freq: string) {
-  return normalizeFreq(freq) !== "Não se repete";
+function isRecurring(freq: string | null | undefined): boolean {
+  const normalized = normalizeFrequency(freq);
+  return !NON_RECURRING_FREQUENCIES.has(normalized);
 }
 
 /* ===== Tipos ===== */
@@ -170,13 +166,36 @@ export async function GET(req: NextRequest) {
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
 
-    const items = await prisma.atividade.findMany({
-      where: { empresaId: authEmpresaId },
-      orderBy: { createdAt: "desc" },
-      include: { condominio: { select: { id: true, name: true } } },
-    });
-
     const today = startOfDayFortaleza();
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
+    // Buscar atividades EXCLUINDO as que já foram concluídas (FEITO) hoje
+    const items = await prisma.atividade.findMany({
+      where: {
+        empresaId: authEmpresaId,
+        deletedAt: null,
+        // Excluir atividades que já têm status FEITO no histórico de hoje
+        NOT: {
+          historico: {
+            some: {
+              dataReferencia: { gte: today, lt: tomorrow },
+              status: "FEITO"
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        condominio: { select: { id: true, name: true } },
+        // Incluir histórico de hoje para verificação adicional
+        historico: {
+          where: {
+            dataReferencia: { gte: today, lt: tomorrow }
+          },
+          select: { status: true, dataReferencia: true }
+        }
+      },
+    });
 
     const tasks = adaptAtividadesToTasks(items);
 
@@ -195,8 +214,8 @@ export async function GET(req: NextRequest) {
         (t.raw as any)?.frequency ??
         (t.raw as any)?.frequencia ??
         "Não se repete";
-      const freqNorm = normalizeFreq(rawFreq);
-      const recurring = isRecurring(freqNorm);
+      const freqNorm = normalizeFrequency(rawFreq);
+      const recurring = isRecurring(rawFreq);
 
       const anchor: Date | null = (t as any).startDate
         ? new Date((t as any).startDate)
@@ -259,7 +278,7 @@ export async function GET(req: NextRequest) {
       }
 
       // 4) Overdue só p/ não recorrentes com start passado e não concluídas
-      const freqForOverdue = freqNorm || "Não se repete";
+      const freqForOverdue = freqNorm;
       const start = anchor ? sod(anchor) : null;
       if (
         freqForOverdue === "Não se repete" &&
