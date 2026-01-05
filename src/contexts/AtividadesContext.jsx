@@ -169,13 +169,9 @@ export function AtividadesProvider({ children }) {
       try {
         const finalEmpresa =
           emp ?? empresaIdRef.current ?? (await resolveEmpresaId());
-        const finalCondo = cId ?? condominioIdRef.current;
+        // condominioId agora é opcional - null/undefined significa "todos os condomínios"
+        const finalCondo = cId ?? condominioIdRef.current ?? null;
         const finalFilters = f ?? filtersRef.current;
-
-        if (!finalCondo) {
-          setError("Defina um condomínio.");
-          return;
-        }
 
         const qs = buildQuery(finalEmpresa, finalCondo, finalFilters, {
           take,

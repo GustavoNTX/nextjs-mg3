@@ -45,11 +45,18 @@ import SelectCondominio from "@/components/SelectCondominio";
 /* ---------- HeaderResumo (limpo) ---------- */
 function HeaderResumo() {
   const { selected } = useCondominoUI();
-  const { stats, loading, totalAtividadesNosCondominios } = useAtividades();
+  const { stats, loading, totalAtividadesNosCondominios, items } = useAtividades();
 
-  const total = totalAtividadesNosCondominios ?? 0;
+  // Se não há condomínio selecionado, mostrar total de items carregados
+  const total = selected?.id
+    ? (totalAtividadesNosCondominios ?? 0)
+    : (items?.length ?? 0);
   const funcionando = stats?.emAndamento ?? 0;
   const pendentes = stats?.pendentes ?? 0;
+
+  const displayName = selected?.id
+    ? selected.name
+    : "Todos os condomínios";
 
   return (
     <Stack
@@ -59,9 +66,9 @@ function HeaderResumo() {
       sx={{ mb: 2 }}
     >
       <Stack direction="row" spacing={2} alignItems="center">
-        <Avatar src={selected?.logoUrl || undefined} alt={selected?.name || ""} />
+        <Avatar src={selected?.logoUrl || undefined} alt={displayName} />
         <Typography variant="h6" fontWeight={700}>
-          {selected?.name || "Condomínio"}
+          {displayName}
         </Typography>
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -142,7 +149,8 @@ function CronogramaInner() {
   // carrega dados do condomínio
   useEffect(() => {
     if (!singleMode) {
-      setSelected({ id: null, name: "Selecione um condomínio", logoUrl: null });
+      // Modo "todos os condomínios" - sem condomínio específico selecionado
+      setSelected({ id: null, name: "Todos os condomínios", logoUrl: null });
       setLoadingCondominio(false);
       return;
     }
@@ -180,10 +188,10 @@ function CronogramaInner() {
     return () => controller.abort();
   }, [singleMode, id, fetchWithAuth, router, setSelected]);
 
-  // consulta atividades — SOMENTE se houver condominioId (API exige)
+  // consulta atividades — carrega com ou sem condominioId
   useEffect(() => {
-    if (!id) return;
-    load({ condominioId: id, reset: true });
+    // Se há id específico, carrega do condomínio; senão, carrega todos
+    load({ condominioId: id || null, reset: true });
   }, [id, load]);
 
   if (singleMode && loadingCondominio) return null;
