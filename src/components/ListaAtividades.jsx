@@ -21,6 +21,7 @@ import {
   Chip,
   CircularProgress,
   IconButton,
+  useTheme as useMuiTheme,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -28,6 +29,15 @@ import BuildIcon from "@mui/icons-material/Build";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import PlaceIcon from "@mui/icons-material/Place";
+import CategoryIcon from "@mui/icons-material/Category";
+import NumbersIcon from "@mui/icons-material/Numbers";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import GroupIcon from "@mui/icons-material/Group";
+import ActivityIcon from "@mui/icons-material/DirectionsRun";
+import DescriptionIcon from "@mui/icons-material/Description";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import NotesIcon from "@mui/icons-material/Notes";
 
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
@@ -155,7 +165,7 @@ const inferStatus = (a) => {
     const task = atividadeToTask(a);
     if (!task) return "PENDENTE"; // fallback
 
-    // 🔥 MUDANÇA CRÍTICA: Usar APENAS o último histórico de HOJE
+    // Usar APENAS o último histórico de HOJE
     const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
 
     // Se tem histórico HOJE, usa ele
@@ -243,18 +253,94 @@ const StatusCircle = styled("div")(({ color }) => ({
   marginRight: 8,
 }));
 
-const InfoItem = ({ label, children }) => (
-  <Box>
-    <Typography
-      variant="caption"
-      color="text.secondary"
-      sx={{ fontWeight: "bold" }}
+/* ---------- Componente InfoItem Aprimorado ---------- */
+const InfoItem = ({
+  label,
+  children,
+  icon,
+  secondary = false,
+  fullWidth = false
+}) => {
+  const theme = useMuiTheme();
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        height: '100%',
+        minHeight: '100px',
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+        backgroundColor: secondary
+          ? theme.palette.background.default
+          : theme.palette.background.paper,
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          borderColor: theme.palette.primary.main,
+          boxShadow: theme.shadows[1]
+        },
+        ...(fullWidth && {
+          borderLeft: `4px solid ${theme.palette.primary.main}`
+        })
+      }}
     >
-      {label}
-    </Typography>
-    <Typography variant="user-body2">{children || "—"}</Typography>
-  </Box>
-);
+      <Box display="flex" alignItems="center" mb={1}>
+        {icon && (
+          <Box
+            sx={{
+              mr: 1.5,
+              color: secondary
+                ? theme.palette.text.secondary
+                : theme.palette.primary.main,
+              fontSize: '0.9rem'
+            }}
+          >
+            {icon}
+          </Box>
+        )}
+        <Typography
+          variant="caption"
+          sx={{
+            color: theme.palette.text.secondary,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+            fontSize: '0.75rem'
+          }}
+        >
+          {label}
+        </Typography>
+      </Box>
+
+      <Divider sx={{ my: 1, opacity: 0.5 }} />
+
+      <Typography
+        variant="body1"
+        sx={{
+          color: theme.palette.text.primary,
+          fontWeight: 500,
+          wordBreak: 'break-word',
+          minHeight: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          fontSize: '0.95rem'
+        }}
+      >
+        {children || (
+          <Typography
+            component="span"
+            color="text.disabled"
+            fontStyle="italic"
+            variant="body2"
+          >
+            Não informado
+          </Typography>
+        )}
+      </Typography>
+    </Paper>
+  );
+};
 
 /* ---------- card ---------- */
 const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
@@ -285,6 +371,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
                 size="small"
                 label={`Prioridade: ${activity.prioridade}`}
                 variant="outlined"
+                sx={{ ml: 1 }}
               />
             )}
           </Stack>
@@ -323,61 +410,115 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
 
       <Divider sx={{ my: 2 }} />
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Local">{activity.location}</InfoItem>
+      {/* Grid de Informações Aprimorado */}
+      <Grid container spacing={3}>
+        {/* Primeira linha - 3 itens */}
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Local"
+            icon={<PlaceIcon fontSize="small" />}
+          >
+            {activity.location}
+          </InfoItem>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Tipo / Categoria">{activity.type}</InfoItem>
+
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Tipo / Categoria"
+            icon={<CategoryIcon fontSize="small" />}
+          >
+            {activity.type}
+          </InfoItem>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Quantidade">{activity.quantity}</InfoItem>
+
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Quantidade"
+            icon={<NumbersIcon fontSize="small" />}
+          >
+            {activity.quantity}
+          </InfoItem>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Frequência">{activity.frequencia}</InfoItem>
+
+        {/* Segunda linha - 3 itens */}
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Frequência"
+            icon={<ScheduleIcon fontSize="small" />}
+          >
+            {activity.frequencia}
+          </InfoItem>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Equipe">{activity.equipe}</InfoItem>
+
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Equipe"
+            icon={<GroupIcon fontSize="small" />}
+          >
+            {activity.equipe}
+          </InfoItem>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <InfoItem label="Tipo de Atividade">
+
+        <Grid item xs={12} sm={4} md={4}>
+          <InfoItem
+            label="Tipo de Atividade"
+            icon={<ActivityIcon fontSize="small" />}
+          >
             {activity.tipoAtividade}
           </InfoItem>
         </Grid>
+
+        {/* Terceira linha - 2 itens em proporção diferente */}
         <Grid item xs={12} md={8}>
-          <InfoItem label="Modelo / Descrição">{activity.model}</InfoItem>
+          <InfoItem
+            label="Modelo / Descrição"
+            icon={<DescriptionIcon fontSize="small" />}
+          >
+            {activity.model}
+          </InfoItem>
         </Grid>
+
         <Grid item xs={12} md={4}>
-          <InfoItem label="Criado em">
+          <InfoItem
+            label="Criado em"
+            icon={<CalendarTodayIcon fontSize="small" />}
+            secondary
+          >
             {formatDateTime(activity.createdAt)}
           </InfoItem>
         </Grid>
+
+        {/* Quarta linha - Observações */}
         <Grid item xs={12}>
-          <InfoItem label="Observações">{activity.observacoes}</InfoItem>
+          <InfoItem
+            label="Observações"
+            icon={<NotesIcon fontSize="small" />}
+            fullWidth
+          >
+            <Typography variant="body2" color="text.secondary">
+              {activity.observacoes || "Nenhuma observação informada"}
+            </Typography>
+          </InfoItem>
         </Grid>
 
         {hasPhoto && (
           <Grid item xs={12}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <ImageIcon fontSize="small" />
-              <Typography variant="body2" color="text.secondary">
-                Foto vinculada
-              </Typography>
+            <InfoItem label="Foto Vinculada" icon={<ImageIcon fontSize="small" />}>
               <Box
                 component="img"
                 src={activity.photoUrl}
                 alt={activity.name}
                 sx={{
-                  ml: 1,
                   width: 120,
                   height: 80,
                   objectFit: "cover",
                   borderRadius: 1,
                   border: "1px solid",
                   borderColor: "divider",
+                  mt: 1
                 }}
               />
-            </Stack>
+            </InfoItem>
           </Grid>
         )}
       </Grid>
@@ -385,7 +526,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
       <Stack
         direction="row"
         spacing={1}
-        sx={{ mt: 2 }}
+        sx={{ mt: 3 }}
         justifyContent="flex-end"
       >
         <Button
@@ -458,7 +599,7 @@ const ListaAtividades = ({ onEdit }) => {
   //   const tab = TABS.find((t) => t.key === activeKey);
   //   let backendStatus = null;
 
-  //   // 🔥 CORREÇÃO: Mapear status do frontend para status do backend
+  //   // CORREÇÃO: Mapear status do frontend para status do backend
   //   switch (activeKey) {
   //     case "EM_ANDAMENTO":
   //       backendStatus = "EM_ANDAMENTO";
@@ -527,7 +668,7 @@ const ListaAtividades = ({ onEdit }) => {
         const hoje = todayDate();
         const now = new Date();
 
-        // 🔥 SEMPRE cria/atualiza histórico para HOJE, independente da frequência
+        // cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
           dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
@@ -586,7 +727,7 @@ const ListaAtividades = ({ onEdit }) => {
    */
   const processedItems = useMemo(() => {
     return items.map((a) => {
-      // 🔥 NORMALIZA: Mantém apenas o último histórico de HOJE
+      // Mantém apenas o último histórico de HOJE
       const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
 
       return {
@@ -624,12 +765,14 @@ const ListaAtividades = ({ onEdit }) => {
       {/* Ações */}
       <Box
         sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexDirection: isSmall ? "column" : "row",
-          gap: 2,
-          mb: 3,
+          color: theme.palette.text.primary,
+          fontWeight: 500,
+          wordBreak: 'break-word',
+          minHeight: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          fontSize: '0.95rem',
+          lineHeight: 1.5
         }}
       >
         <Paper
