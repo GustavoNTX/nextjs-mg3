@@ -55,11 +55,6 @@ export const menuItems = [
         icon: <CloudUploadIcon />,
         path: "/config/logo",
       },
-      {
-        text: "Saldo Cashback",
-        icon: <AccountBalanceWalletIcon />,
-        path: "/config/cashback",
-      },
     ],
   },
   { text: "Sair", icon: <LogoutIcon />, action: "logout" },
