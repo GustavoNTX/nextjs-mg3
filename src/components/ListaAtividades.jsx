@@ -315,8 +315,7 @@ const InfoItem = ({
 
       <Divider sx={{ my: 1, opacity: 0.5 }} />
 
-      <Typography
-        variant="body1"
+      <Box
         sx={{
           color: theme.palette.text.primary,
           fontWeight: 500,
@@ -324,20 +323,23 @@ const InfoItem = ({
           minHeight: '24px',
           display: 'flex',
           alignItems: 'center',
-          fontSize: '0.95rem'
+          fontSize: '0.95rem',
+          lineHeight: 1.5
         }}
       >
         {children || (
-          <Typography
+          <Box
             component="span"
-            color="text.disabled"
-            fontStyle="italic"
-            variant="body2"
+            sx={{
+              color: theme.palette.text.disabled,
+              fontStyle: 'italic',
+              fontSize: '0.875rem'
+            }}
           >
             Não informado
-          </Typography>
+          </Box>
         )}
-      </Typography>
+      </Box>
     </Paper>
   );
 };
@@ -495,9 +497,18 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
             icon={<NotesIcon fontSize="small" />}
             fullWidth
           >
-            <Typography variant="body2" color="text.secondary">
+            <Box
+              component="span"
+              sx={{
+                color: (theme) => theme.palette.text.secondary,
+                fontSize: '0.875rem',
+                lineHeight: 1.5,
+                display: 'block',
+                width: '100%'
+              }}
+            >
               {activity.observacoes || "Nenhuma observação informada"}
-            </Typography>
+            </Box>
           </InfoItem>
         </Grid>
 
@@ -765,14 +776,12 @@ const ListaAtividades = ({ onEdit }) => {
       {/* Ações */}
       <Box
         sx={{
-          color: theme.palette.text.primary,
-          fontWeight: 500,
-          wordBreak: 'break-word',
-          minHeight: '24px',
-          display: 'flex',
-          alignItems: 'center',
-          fontSize: '0.95rem',
-          lineHeight: 1.5
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexDirection: isSmall ? "column" : "row",
+          gap: 2,
+          mb: 3,
         }}
       >
         <Paper
