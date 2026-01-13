@@ -1,4 +1,3 @@
-// src/components/ListaAtividades.jsx
 "use client";
 
 import React, {
@@ -21,23 +20,13 @@ import {
   Chip,
   CircularProgress,
   IconButton,
-  useTheme as useMuiTheme,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { styled, alpha } from "@mui/material/styles"; // Importado alpha para cores dinâmicas
 import RefreshIcon from "@mui/icons-material/Refresh";
 import BuildIcon from "@mui/icons-material/Build";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
-import PlaceIcon from "@mui/icons-material/Place";
-import CategoryIcon from "@mui/icons-material/Category";
-import NumbersIcon from "@mui/icons-material/Numbers";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import GroupIcon from "@mui/icons-material/Group";
-import ActivityIcon from "@mui/icons-material/DirectionsRun";
-import DescriptionIcon from "@mui/icons-material/Description";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-import NotesIcon from "@mui/icons-material/Notes";
 
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
@@ -154,10 +143,10 @@ const getUltimoHistoricoHoje = (atividade) => {
 
 /**
  * inferStatus: bucket da atividade HOJE baseado APENAS no histórico de HOJE
- *  - PROXIMAS: não é esperado hoje e nunca foi feito em nenhuma data
- *  - HISTORICO: tem FEITO no histórico de HOJE (apenas hoje conta)
- *  - EM_ANDAMENTO: tem EM_ANDAMENTO no histórico de HOJE
- *  - PENDENTE: é esperado hoje mas não tem registro OU tem PENDENTE hoje
+ * - PROXIMAS: não é esperado hoje e nunca foi feito em nenhuma data
+ * - HISTORICO: tem FEITO no histórico de HOJE (apenas hoje conta)
+ * - EM_ANDAMENTO: tem EM_ANDAMENTO no histórico de HOJE
+ * - PENDENTE: é esperado hoje mas não tem registro OU tem PENDENTE hoje
  */
 const inferStatus = (a) => {
   try {
@@ -165,7 +154,7 @@ const inferStatus = (a) => {
     const task = atividadeToTask(a);
     if (!task) return "PENDENTE"; // fallback
 
-    // Usar APENAS o último histórico de HOJE
+    // 🔥 MUDANÇA CRÍTICA: Usar APENAS o último histórico de HOJE
     const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
 
     // Se tem histórico HOJE, usa ele
@@ -233,8 +222,9 @@ const TabCircle = styled("div")(({ color }) => ({
 
 const CardContainer = styled(Paper)(({ theme }) => ({
   marginBottom: theme.spacing(2),
-  padding: theme.spacing(2),
-  borderRadius: theme.shape.borderRadius * 1.25,
+  padding: theme.spacing(2.5), // Aumentado levemente o padding
+  borderRadius: theme.shape.borderRadius * 1.5,
+  backgroundImage: "none", // Garante cor sólida no Dark Mode
 }));
 
 const StatusSpan = styled("span")(({ color }) => ({
@@ -253,99 +243,37 @@ const StatusCircle = styled("div")(({ color }) => ({
   marginRight: 8,
 }));
 
-/* ---------- Componente InfoItem Aprimorado ---------- */
-const InfoItem = ({
-  label,
-  children,
-  icon,
-  secondary = false,
-  fullWidth = false
-}) => {
-  const theme = useMuiTheme();
-
-  return (
-    <Paper
-      elevation={0}
+// Componente de item de informação com suporte a Dark Mode
+const InfoItem = ({ label, children }) => (
+  <Box sx={{ mb: 0.5 }}>
+    <Typography
+      variant="caption"
       sx={{
-        p: 2,
-        height: '100%',
-        minHeight: '100px',
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        backgroundColor: secondary
-          ? theme.palette.background.default
-          : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          borderColor: theme.palette.primary.main,
-          boxShadow: theme.shadows[1]
-        },
-        ...(fullWidth && {
-          borderLeft: `4px solid ${theme.palette.primary.main}`
-        })
+        fontWeight: "700",
+        color: "text.secondary",
+        display: "block",
+        textTransform: "uppercase",
+        fontSize: "0.65rem",
+        letterSpacing: "0.5px"
       }}
     >
-      <Box display="flex" alignItems="center" mb={1}>
-        {icon && (
-          <Box
-            sx={{
-              mr: 1.5,
-              color: secondary
-                ? theme.palette.text.secondary
-                : theme.palette.primary.main,
-              fontSize: '0.9rem'
-            }}
-          >
-            {icon}
-          </Box>
-        )}
-        <Typography
-          variant="caption"
-          sx={{
-            color: theme.palette.text.secondary,
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            fontSize: '0.75rem'
-          }}
-        >
-          {label}
-        </Typography>
-      </Box>
-
-      <Divider sx={{ my: 1, opacity: 0.5 }} />
-
-      <Box
-        sx={{
-          color: theme.palette.text.primary,
-          fontWeight: 500,
-          wordBreak: 'break-word',
-          minHeight: '24px',
-          display: 'flex',
-          alignItems: 'center',
-          fontSize: '0.95rem',
-          lineHeight: 1.5
-        }}
-      >
-        {children || (
-          <Box
-            component="span"
-            sx={{
-              color: theme.palette.text.disabled,
-              fontStyle: 'italic',
-              fontSize: '0.875rem'
-            }}
-          >
-            Não informado
-          </Box>
-        )}
-      </Box>
-    </Paper>
-  );
-};
+      {label}
+    </Typography>
+    <Typography
+      variant="body2"
+      sx={{
+        fontWeight: "500",
+        color: "text.primary"
+      }}
+    >
+      {children || "—"}
+    </Typography>
+  </Box>
+);
 
 /* ---------- card ---------- */
 const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
+  const theme = useTheme();
   const st = inferStatus(activity);
   const statusText = statusLabelOf(st);
   const statusColor = statusColorOf(st);
@@ -364,8 +292,8 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
       >
         <Grid item xs={12} md="auto">
           <Stack direction="row" alignItems="center" spacing={1}>
-            <ImageIcon fontSize="small" />
-            <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+            <ImageIcon fontSize="small" sx={{ color: "text.secondary" }} />
+            <Typography variant="h6" sx={{ fontWeight: "bold", color: "text.primary" }}>
               {activity.name}
             </Typography>
             {activity.prioridade && (
@@ -373,7 +301,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
                 size="small"
                 label={`Prioridade: ${activity.prioridade}`}
                 variant="outlined"
-                sx={{ ml: 1 }}
+                sx={{ height: 20, fontSize: "0.7rem" }}
               />
             )}
           </Stack>
@@ -394,7 +322,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
               aria-label="Editar"
               onClick={() => onEdit?.(activity)}
               size="small"
-              sx={{ ml: 1 }}
+              sx={{ ml: 1, color: "text.secondary" }}
             >
               <EditIcon fontSize="small" />
             </IconButton>
@@ -402,7 +330,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
               aria-label="Excluir"
               onClick={() => onDelete?.(activity.id)}
               size="small"
-              sx={{ ml: 1 }}
+              sx={{ ml: 1, color: theme.palette.error.main }}
             >
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>
@@ -410,141 +338,93 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         </Grid>
       </Grid>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 2, opacity: theme.palette.mode === 'dark' ? 0.2 : 1 }} />
 
-      {/* Grid de Informações Aprimorado */}
-      <Grid container spacing={3}>
-        {/* Primeira linha - 3 itens */}
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Local"
-            icon={<PlaceIcon fontSize="small" />}
-          >
-            {activity.location}
-          </InfoItem>
+      {/* --- INÍCIO DA PARTE ALTERADA --- */}
+      <Grid container spacing={2.5}>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Local: ">{activity.location}</InfoItem>
         </Grid>
-
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Tipo / Categoria"
-            icon={<CategoryIcon fontSize="small" />}
-          >
-            {activity.type}
-          </InfoItem>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Tipo / Categoria: ">{activity.type}</InfoItem>
         </Grid>
-
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Quantidade"
-            icon={<NumbersIcon fontSize="small" />}
-          >
-            {activity.quantity}
-          </InfoItem>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Quantidade: ">{activity.quantity}</InfoItem>
         </Grid>
-
-        {/* Segunda linha - 3 itens */}
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Frequência"
-            icon={<ScheduleIcon fontSize="small" />}
-          >
-            {activity.frequencia}
-          </InfoItem>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Frequência: ">{activity.frequencia}</InfoItem>
         </Grid>
-
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Equipe"
-            icon={<GroupIcon fontSize="small" />}
-          >
-            {activity.equipe}
-          </InfoItem>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Equipe: ">{activity.equipe}</InfoItem>
         </Grid>
-
-        <Grid item xs={12} sm={4} md={4}>
-          <InfoItem
-            label="Tipo de Atividade"
-            icon={<ActivityIcon fontSize="small" />}
-          >
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Tipo de Atividade: ">
             {activity.tipoAtividade}
           </InfoItem>
         </Grid>
-
-        {/* Terceira linha - 2 itens em proporção diferente */}
-        <Grid item xs={12} md={8}>
-          <InfoItem
-            label="Modelo / Descrição"
-            icon={<DescriptionIcon fontSize="small" />}
-          >
-            {activity.model}
-          </InfoItem>
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Modelo: ">{activity.model}</InfoItem>
         </Grid>
-
-        <Grid item xs={12} md={4}>
-          <InfoItem
-            label="Criado em"
-            icon={<CalendarTodayIcon fontSize="small" />}
-            secondary
-          >
+        <Grid item xs={6} sm={4} md={3}>
+          <InfoItem label="Criado em: ">
             {formatDateTime(activity.createdAt)}
           </InfoItem>
         </Grid>
 
-        {/* Quarta linha - Observações */}
         <Grid item xs={12}>
-          <InfoItem
-            label="Observações"
-            icon={<NotesIcon fontSize="small" />}
-            fullWidth
+          <Box
+            sx={{
+              mt: 1,
+              p: 2,
+              borderRadius: 2,
+              border: `1px solid ${theme.palette.divider}`,
+              bgcolor: theme.palette.mode === 'dark'
+                ? alpha(theme.palette.common.white, 0.03)
+                : alpha(theme.palette.common.black, 0.02)
+            }}
           >
-            <Box
-              component="span"
-              sx={{
-                color: (theme) => theme.palette.text.secondary,
-                fontSize: '0.875rem',
-                lineHeight: 1.5,
-                display: 'block',
-                width: '100%'
-              }}
-            >
-              {activity.observacoes || "Nenhuma observação informada"}
-            </Box>
-          </InfoItem>
+            <InfoItem label="Observações: ">{activity.observacoes}</InfoItem>
+          </Box>
         </Grid>
 
         {hasPhoto && (
           <Grid item xs={12}>
-            <InfoItem label="Foto Vinculada" icon={<ImageIcon fontSize="small" />}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <ImageIcon fontSize="small" color="disabled" />
+              <Typography variant="caption" color="text.secondary">
+                Foto vinculada
+              </Typography>
               <Box
                 component="img"
                 src={activity.photoUrl}
                 alt={activity.name}
                 sx={{
-                  width: 120,
-                  height: 80,
+                  ml: 1,
+                  width: 100,
+                  height: 64,
                   objectFit: "cover",
-                  borderRadius: 1,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  mt: 1
+                  borderRadius: 1.5,
+                  border: `1px solid ${theme.palette.divider}`,
                 }}
               />
-            </InfoItem>
+            </Stack>
           </Grid>
         )}
       </Grid>
+      {/* --- FIM DA PARTE ALTERADA --- */}
 
       <Stack
         direction="row"
         spacing={1}
-        sx={{ mt: 3 }}
+        sx={{ mt: 3 }} // Aumentado o espaçamento superior do botão
         justifyContent="flex-end"
       >
         <Button
-          size="small"
+          size="medium" // Aumentado para médio para melhor toque
           variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
           color={st === "EM_ANDAMENTO" ? "success" : "primary"}
           onClick={() => onToggleStatus?.(activity)}
+          sx={{ borderRadius: 2, textTransform: "none", fontWeight: "bold", px: 4 }}
         >
           {toggleButtonLabel}
         </Button>
@@ -603,44 +483,6 @@ const ListaAtividades = ({ onEdit }) => {
   const [activeKey, setActiveKey] = useState("EM_ANDAMENTO");
   const lastQueryRef = useRef({ condo: null, status: null });
 
-  // auto-load por aba + condomínio (filtro de status é no backend)
-  // useEffect(() => {
-  //   if (!condominioId) return;
-
-  //   const tab = TABS.find((t) => t.key === activeKey);
-  //   let backendStatus = null;
-
-  //   // CORREÇÃO: Mapear status do frontend para status do backend
-  //   switch (activeKey) {
-  //     case "EM_ANDAMENTO":
-  //       backendStatus = "EM_ANDAMENTO";
-  //       break;
-  //     case "PENDENTE":
-  //       backendStatus = "PENDENTE";
-  //       break;
-  //     case "HISTORICO":
-  //       backendStatus = "FEITO";
-  //       break;
-  //     case "PROXIMAS":
-  //       // Para PRÓXIMAS, não filtrar por status no backend
-  //       backendStatus = null;
-  //       break;
-  //   }
-
-  //   const sameCondo = lastQueryRef.current.condo === condominioId;
-  //   const sameStatus = lastQueryRef.current.status === backendStatus;
-
-  //   if (sameCondo && sameStatus) return;
-
-  //   lastQueryRef.current = { condo: condominioId, status: backendStatus };
-
-  //   load({
-  //     condominioId,
-  //     reset: true,
-  //     filters: backendStatus ? { status: backendStatus } : {}
-  //   });
-  // }, [condominioId, activeKey, TABS, load]);
-
   useEffect(() => {
     if (!condominioId) return;
 
@@ -658,16 +500,6 @@ const ListaAtividades = ({ onEdit }) => {
 
   const handleTabClick = useCallback((tabKey) => setActiveKey(tabKey), []);
 
-  // const handleRefresh = useCallback(() => {
-  //   if (!condominioId) return;
-  //   const t = TABS.find((x) => x.key === activeKey);
-  //   load({
-  //     condominioId,
-  //     reset: true,
-  //     filters: { status: t?.status ?? undefined },
-  //   });
-  // }, [condominioId, activeKey, TABS, load]);
-
   const handleRefresh = useCallback(() => {
     if (!condominioId) return;
     load({ condominioId, reset: true, filters: {} }); // <-- SEM status sempre
@@ -679,7 +511,7 @@ const ListaAtividades = ({ onEdit }) => {
         const hoje = todayDate();
         const now = new Date();
 
-        // cria/atualiza histórico para HOJE, independente da frequência
+        // SEMPRE cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
           dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
@@ -712,12 +544,11 @@ const ListaAtividades = ({ onEdit }) => {
         // Se não tem histórico hoje, fica com EM_ANDAMENTO (padrão)
 
         await updateAtividade(activity.id, patch);
-        // O contexto já atualiza automaticamente, não precisa de handleRefresh
       } catch (e) {
         console.error("Erro ao alternar status:", e);
       }
     },
-    [updateAtividade] // Removido handleRefresh
+    [updateAtividade]
   );
 
   const handleDelete = useCallback(
@@ -732,13 +563,8 @@ const ListaAtividades = ({ onEdit }) => {
     [deleteAtividade, handleRefresh]
   );
 
-  /**
-   * Processa items para usar apenas o histórico mais recente de HOJE
-   * Isso evita duplicação quando uma atividade tem múltiplos históricos no mesmo dia
-   */
   const processedItems = useMemo(() => {
     return items.map((a) => {
-      // Mantém apenas o último histórico de HOJE
       const ultimoHistoricoHoje = getUltimoHistoricoHoje(a);
 
       return {
@@ -748,10 +574,6 @@ const ListaAtividades = ({ onEdit }) => {
     });
   }, [items]);
 
-  /**
-   * Filtra items pelo status da aba ativa
-   * Usa a nova lógica de inferStatus que considera apenas HOJE
-   */
   const filteredItems = useMemo(() => {
     return processedItems.filter((a) => inferStatus(a) === activeKey);
   }, [processedItems, activeKey]);
@@ -795,6 +617,7 @@ const ListaAtividades = ({ onEdit }) => {
             gap: 1,
             width: isSmall ? "100%" : "auto",
             textAlign: "center",
+            bgcolor: "background.paper"
           }}
         >
           <Typography variant="body2" color="text.secondary">
@@ -814,6 +637,7 @@ const ListaAtividades = ({ onEdit }) => {
             startIcon={<RefreshIcon />}
             variant="outlined"
             fullWidth={isSmall}
+            sx={{ borderRadius: 2 }}
           >
             Atualizar
           </Button>
@@ -850,7 +674,7 @@ const ListaAtividades = ({ onEdit }) => {
           ))}
           {nextCursor && (
             <Stack alignItems="center" sx={{ mt: 2 }}>
-              <Button onClick={loadMore} variant="outlined">
+              <Button onClick={loadMore} variant="outlined" sx={{ borderRadius: 2 }}>
                 Carregar mais
               </Button>
             </Stack>
