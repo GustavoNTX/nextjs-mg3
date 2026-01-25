@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Modal,
   Box,
@@ -9,11 +10,15 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemSecondaryAction,
   CircularProgress,
   Chip,
   Stack,
+  IconButton,
+  Tooltip,
   useTheme,
 } from "@mui/material";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { alpha } from "@mui/material/styles";
 import { useAtividadesOptional } from "@/contexts/AtividadesContext";
 import { APP_TIMEZONE } from "@/constants/timezone";
@@ -46,6 +51,7 @@ const formatDate = (date) =>
 
 export default function NotificationsModal({ open, onClose }) {
   const theme = useTheme();
+  const router = useRouter();
   const atividades = useAtividadesOptional();
 
   const notifications = atividades?.notifications ?? [];
@@ -85,10 +91,17 @@ export default function NotificationsModal({ open, onClose }) {
     [notifications, todayISO]
   );
 
+  const handleNavigateToActivity = (n) => {
+    if (!n.condominioId || !n.atividadeId) return;
+    onClose(); // Fecha o modal
+    router.push(`/atividades/${n.condominioId}?atividadeId=${n.atividadeId}`);
+  };
+
   const renderItem = (n) => {
     const key = `${n.atividadeId ?? n.title}-${n.dueDateISO}`;
-    const primary = n.title || n.nameOnly || "Atividade";
+    const primary = n.nameOnly || n.title || "Atividade";
     const secondary = n.details || "Pendente para hoje";
+    const canNavigate = Boolean(n.condominioId && n.atividadeId);
 
     return (
       <ListItem
@@ -99,7 +112,13 @@ export default function NotificationsModal({ open, onClose }) {
           mb: 1,
           boxShadow: theme.shadows[1],
           "&:last-of-type": { mb: 0 },
+          cursor: canNavigate ? "pointer" : "default",
+          "&:hover": canNavigate ? {
+            backgroundColor: alpha(theme.palette.warning.main, 0.2),
+          } : {},
+          pr: 7, // Espaço para o botão
         }}
+        onClick={() => canNavigate && handleNavigateToActivity(n)}
       >
         <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
           <ListItemText
@@ -122,6 +141,23 @@ export default function NotificationsModal({ open, onClose }) {
             }}
           />
         </Box>
+        {canNavigate && (
+          <ListItemSecondaryAction>
+            <Tooltip title="Ir para atividade">
+              <IconButton
+                edge="end"
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNavigateToActivity(n);
+                }}
+                sx={{ color: theme.palette.primary.main }}
+              >
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </ListItemSecondaryAction>
+        )}
       </ListItem>
     );
   };
