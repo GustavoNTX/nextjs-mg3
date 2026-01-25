@@ -268,6 +268,7 @@ const createSchema = z
     observacoes: z.string().optional().nullable(),
     photoUrl: z.string().url().optional().nullable(),
     expectedDate: dateFlex().optional(),
+    completionDate: dateFlex().optional(),
     tags: z.array(z.string()).optional(),
     budgetStatus: z.string().optional(),
     costEstimate: z
@@ -332,6 +333,7 @@ export async function POST(req: NextRequest) {
         tipoAtividade: data.tipoAtividade ?? undefined,
         observacoes: data.observacoes ?? undefined,
         expectedDate: data.expectedDate ?? undefined,
+        completionDate: data.completionDate ?? undefined,
         tags: data.tags ?? [],
         empresaId: authEmpresaId,
         condominioId: data.condominioId,

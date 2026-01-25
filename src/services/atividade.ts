@@ -104,7 +104,7 @@ export async function agendarProximaExecucaoSeFeito(args: {
 
   const atividade = await prisma.atividade.findUnique({
     where: { id: args.atividadeId },
-    select: { frequencia: true },
+    select: { frequencia: true, completionDate: true },
   });
   if (!atividade) return;
 
@@ -113,6 +113,15 @@ export async function agendarProximaExecucaoSeFeito(args: {
     atividade.frequencia as Frequencia
   );
   if (!proxima) return;
+
+  // Verifica se a próxima data ultrapassa a data de finalização do ciclo
+  if (atividade.completionDate) {
+    const completionDateNorm = startOfDayBrasilia(atividade.completionDate);
+    if (proxima.getTime() > completionDateNorm.getTime()) {
+      // Ciclo encerrado - não gera mais ocorrências
+      return;
+    }
+  }
 
   await prisma.atividadeHistorico.upsert({
     where: {

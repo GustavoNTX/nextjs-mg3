@@ -353,6 +353,7 @@ const patchSchema = z
     condominioId: z.string().uuid(),
 
     expectedDate: dateFlex().optional(),
+    completionDate: dateFlex().optional(),
     prioridade: z.string().optional(),
     budgetStatus: z.string().optional(),
     appliedStandard: z.string().optional(),
