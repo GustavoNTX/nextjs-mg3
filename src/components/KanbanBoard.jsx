@@ -33,6 +33,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
+import { startOfDayBrasilia } from "@/utils/date-utils";
 
 /* ---------- helpers locais ---------- */
 
@@ -315,18 +316,14 @@ const CardStatusCircle = styled("div")(({ $color }) => ({
   marginRight: 6,
 }));
 
-function dayRefFortalezaISO() {
-  const d = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Fortaleza" })
-  );
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString(); // vai dar 03:00Z (meia-noite Fortaleza)
+function dayRefBrasiliaISO() {
+  return startOfDayBrasilia(new Date()).toISOString(); // 03:00Z (meia-noite Brasília)
 }
 
 /* ---------- payload ao soltar em coluna (histórico do dia) ---------- */
 function patchForColumn(code) {
   const now = new Date();
-  const dataRefISO = dayRefFortalezaISO();
+  const dataRefISO = dayRefBrasiliaISO();
 
   // aqui usamos status do HISTÓRICO: PENDENTE / EM_ANDAMENTO / FEITO
   switch (code) {

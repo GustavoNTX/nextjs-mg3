@@ -78,8 +78,8 @@ function ensureEmpresaMatch(
     throw json(403, { error: "empresaId não corresponde ao usuário" });
 }
 
-/* ===== Data (TZ Fortaleza) ===== */
-function startOfDayFortaleza(d: Date | string = new Date()) {
+/* ===== Data (TZ Brasília) ===== */
+function startOfDayBrasilia(d: Date | string = new Date()) {
   const date = new Date(d);
   const ymd = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
@@ -120,13 +120,13 @@ type Notification = {
   esperadoNaData?: boolean | null;
 };
 
-// helpers locais (Fortaleza)
+// helpers locais (Brasília)
 const toYMD = (d: Date) => d.toISOString().slice(0, 10);
 
-// pega um YYYY-MM-DD e transforma em "início do dia Fortaleza" (03:00Z)
+// pega um YYYY-MM-DD e transforma em "início do dia Brasília" (03:00Z)
 const parseYMD = (ymd: string): Date => {
-  // usar meio-dia UTC evita cair no dia anterior em Fortaleza
-  return startOfDayFortaleza(`${ymd}T12:00:00.000Z`);
+  // usar meio-dia UTC evita cair no dia anterior em Brasília
+  return startOfDayBrasilia(`${ymd}T12:00:00.000Z`);
 };
 
 // soma dias mantendo a hora canônica (03:00Z)
@@ -136,8 +136,8 @@ const addDays = (date: Date, amount: number): Date => {
   return r;
 };
 
-// (opcional) substitui sod por Fortaleza
-const sod = (d: Date) => startOfDayFortaleza(d);
+// (opcional) substitui sod por Brasília
+const sod = (d: Date) => startOfDayBrasilia(d);
 
 // const parseYMD = (ymd: string): Date => {
 //   const [y, m, d] = ymd.split("-").map((v) => Number(v));
@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
 
     ensureEmpresaMatch(authEmpresaId, empresaId);
 
-    const today = startOfDayFortaleza();
+    const today = startOfDayBrasilia();
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
     // Buscar atividades EXCLUINDO as que já foram concluídas (FEITO) hoje
@@ -392,7 +392,7 @@ export async function GET(req: NextRequest) {
       const list = historicoByAtividade.get(key) ?? [];
       list.push({
         atividadeId: h.atividadeId,
-        dataReferencia: startOfDayFortaleza(h.dataReferencia).toISOString(),
+        dataReferencia: startOfDayBrasilia(h.dataReferencia).toISOString(),
         status: h.status as any,
         completedAt: h.completedAt?.toISOString() ?? null,
         observacoes: h.observacoes ?? null,

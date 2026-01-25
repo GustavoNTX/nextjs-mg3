@@ -16,10 +16,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useAtividadesOptional } from "@/contexts/AtividadesContext";
-
-// Timezone unificado para todo o projeto
-const APP_TIMEZONE = "America/Fortaleza";
-const APP_TIMEZONE_OFFSET = "-03:00";
+import { APP_TIMEZONE } from "@/constants/timezone";
 
 const modalStyle = (theme) => ({
   position: "absolute",
@@ -64,7 +61,7 @@ export default function NotificationsModal({ open, onClose }) {
     loadNotifications({ leadDays: 0 });
   }, [open, loadNotifications]);
 
-  // YYYY-MM-DD no fuso de Fortaleza (consistente com o resto do projeto)
+  // YYYY-MM-DD no fuso de Brasília (consistente com o resto do projeto)
   const todayISO = useMemo(() => {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: APP_TIMEZONE,

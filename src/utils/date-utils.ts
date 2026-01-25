@@ -63,11 +63,11 @@ export function proximoDiaUtil(
 
 
 /**
- * Retorna o início do dia (00:00:00) no timezone da aplicação (Fortaleza)
- * Resultado é uma data UTC que representa meia-noite em Fortaleza (03:00Z)
+ * Retorna o início do dia (00:00:00) no timezone da aplicação (Brasília)
+ * Resultado é uma data UTC que representa meia-noite em Brasília (03:00Z)
  */
-export function startOfDayFortaleza(dateLike: Date = new Date()): Date {
-  // pega YYYY-MM-DD no fuso de Fortaleza
+export function startOfDayBrasilia(dateLike: Date = new Date()): Date {
+  // pega YYYY-MM-DD no fuso de Brasília
   const ymd = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
     year: "numeric",
@@ -75,25 +75,29 @@ export function startOfDayFortaleza(dateLike: Date = new Date()): Date {
     day: "2-digit",
   }).format(dateLike);
 
-  // cria uma data que representa 00:00 Fortaleza (vira 03:00Z)
+  // cria uma data que representa 00:00 Brasília (vira 03:00Z)
   return new Date(`${ymd}T00:00:00${APP_TIMEZONE_OFFSET}`);
 }
 
-// Alias para compatibilidade
-export const startOfDayFortaleza_get = startOfDayFortaleza;
+// Aliases para compatibilidade
+export const startOfDayFortaleza = startOfDayBrasilia;
+export const startOfDayFortaleza_get = startOfDayBrasilia;
 
 /**
- * Adiciona dias a uma data mantendo o timezone de Fortaleza
- * Fortaleza não tem DST, então 24h funciona ok
+ * Adiciona dias a uma data mantendo o timezone de Brasília
+ * Brasil não tem mais DST desde 2019, então 24h funciona ok
  */
-export function addDaysFortaleza(dayRef: Date, days: number): Date {
+export function addDaysBrasilia(dayRef: Date, days: number): Date {
   return new Date(dayRef.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+// Alias para compatibilidade
+export const addDaysFortaleza = addDaysBrasilia;
+
 /**
- * Retorna a data atual no formato YYYY-MM-DD no timezone de Fortaleza
+ * Retorna a data atual no formato YYYY-MM-DD no timezone de Brasília
  */
-export function todayISOFortaleza(): string {
+export function todayISOBrasilia(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
     year: "numeric",
@@ -101,3 +105,6 @@ export function todayISOFortaleza(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+// Alias para compatibilidade
+export const todayISOFortaleza = todayISOBrasilia;

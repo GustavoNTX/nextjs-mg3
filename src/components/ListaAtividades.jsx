@@ -31,6 +31,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
+import { startOfDayBrasilia } from "@/utils/date-utils";
 
 /* ---------- helpers locais (status, data, recorrência) ---------- */
 
@@ -50,6 +51,10 @@ const normalizeDate = (d) => {
 };
 
 const todayDate = () => normalizeDate(new Date());
+
+function dayRefBrasiliaISO() {
+  return startOfDayBrasilia(new Date()).toISOString(); // 03:00Z (meia-noite Brasília)
+}
 
 /** mapeia código de status lógico -> label */
 const statusLabelOf = (code) => {
@@ -278,7 +283,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
   const statusText = statusLabelOf(st);
   const statusColor = statusColorOf(st);
   const hasPhoto = Boolean(activity.photoUrl);
-
   const toggleButtonLabel =
     st === "EM_ANDAMENTO" ? "Concluir atividade" : "Iniciar atividade";
 
@@ -420,7 +424,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         justifyContent="flex-end"
       >
         <Button
-          size="medium" // Aumentado para médio para melhor toque
+          size="medium"
           variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
           color={st === "EM_ANDAMENTO" ? "success" : "primary"}
           onClick={() => onToggleStatus?.(activity)}
@@ -508,13 +512,13 @@ const ListaAtividades = ({ onEdit }) => {
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
-        const hoje = todayDate();
         const now = new Date();
+        const dataRefISO = dayRefBrasiliaISO();
 
         // SEMPRE cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
-          dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
+          dataReferencia: dataRefISO, // Data canônica de HOJE (timezone Brasília)
           completedAt: null,
         };
 
