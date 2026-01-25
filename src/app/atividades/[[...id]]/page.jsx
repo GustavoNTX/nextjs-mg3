@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Layout from "@/components/Layout";
 import {
   Box,
@@ -87,10 +87,14 @@ function CronogramaInner() {
   const { fetchWithAuth } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const rawId = params?.id;
   const id =
     typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
   const singleMode = !!id;
+
+  // Query param para filtrar atividade específica (vindo de notificação)
+  const highlightAtividadeId = searchParams?.get("atividadeId") || null;
 
   const [currentTab, setCurrentTab] = useState(0);
   const [loadingCondominio, setLoadingCondominio] = useState(true);
@@ -218,9 +222,9 @@ function CronogramaInner() {
       </Box>
 
       <Box>
-        {currentTab === 0 && <ListaAtividades onEdit={handleOpenEdit} />}
+        {currentTab === 0 && <ListaAtividades onEdit={handleOpenEdit} highlightAtividadeId={highlightAtividadeId} />}
         {currentTab === 1 && <CalendarView onEdit={handleOpenEdit} />}
-        {currentTab === 2 && <KanbanBoard onEdit={handleOpenEdit} />}
+        {currentTab === 2 && <KanbanBoard onEdit={handleOpenEdit} highlightAtividadeId={highlightAtividadeId} />}
       </Box>
 
       <AddAtividadeDialog

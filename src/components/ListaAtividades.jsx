@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Box,
   Typography,
@@ -27,6 +28,8 @@ import BuildIcon from "@mui/icons-material/Build";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import CloseIcon from "@mui/icons-material/Close";
+import FilterListIcon from "@mui/icons-material/FilterList";
 
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
@@ -438,9 +441,19 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
 };
 
 /* ---------- componente principal ---------- */
-const ListaAtividades = ({ onEdit }) => {
+const ListaAtividades = ({ onEdit, highlightAtividadeId }) => {
   const theme = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // Modo de filtro: quando vem de uma notificação com atividadeId específico
+  const isFilterMode = Boolean(highlightAtividadeId);
+
+  // Função para limpar o filtro de atividade específica
+  const handleClearFilter = useCallback(() => {
+    router.replace(pathname);
+  }, [router, pathname]);
 
   const {
     items,
@@ -579,11 +592,48 @@ const ListaAtividades = ({ onEdit }) => {
   }, [items]);
 
   const filteredItems = useMemo(() => {
+    // Se há filtro por atividade específica (vindo de notificação), mostrar apenas ela
+    if (highlightAtividadeId) {
+      return processedItems.filter((a) => a.id === highlightAtividadeId);
+    }
     return processedItems.filter((a) => inferStatus(a) === activeKey);
-  }, [processedItems, activeKey]);
+  }, [processedItems, activeKey, highlightAtividadeId]);
 
   return (
     <Box>
+      {/* Banner de filtro ativo */}
+      {isFilterMode && (
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 2,
+            p: 2,
+            borderRadius: 2,
+            bgcolor: alpha(theme.palette.info.main, 0.1),
+            border: `1px solid ${alpha(theme.palette.info.main, 0.3)}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <FilterListIcon sx={{ color: theme.palette.info.main }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Exibindo atividade da notificação
+            </Typography>
+          </Stack>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<CloseIcon />}
+            onClick={handleClearFilter}
+            sx={{ borderRadius: 2 }}
+          >
+            Ver todas
+          </Button>
+        </Paper>
+      )}
+
       {/* Abas */}
       <TabWrapper>
         {TABS.map((t) => (
