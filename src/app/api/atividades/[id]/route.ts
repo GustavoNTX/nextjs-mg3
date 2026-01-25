@@ -8,7 +8,7 @@ import { FREQUENCIAS } from "@/utils/frequencias";
 import type { Frequencia } from "@/utils/frequencias";
 import { agendarProximaExecucaoSeFeito } from "@/services/atividade";
 import { HistoricoStatus } from "@prisma/client";
-import { startOfDayFortaleza } from "@/utils/date-utils";
+import { startOfDayBrasilia } from "@/utils/date-utils";
 
 import {
   TaskLike,
@@ -170,13 +170,13 @@ export async function GET(
     const to = toDate(searchParams.get("to"));
     const wantStats = searchParams.get("stats") === "1";
 
-    // ✅ HOJE CANÔNICO (00:00 Fortaleza => 03:00Z)
-    const hoje = startOfDayFortaleza(new Date());
+    // ✅ HOJE CANÔNICO (00:00 Brasília => 03:00Z)
+    const hoje = startOfDayBrasilia(new Date());
     const todayKey = hoje.toISOString().slice(0, 10);
 
     // ✅ startDate CANÔNICO (senão frequência cai no dia errado)
     const startDateBase = item.expectedDate ?? item.createdAt;
-    const startDate = startOfDayFortaleza(startDateBase).toISOString();
+    const startDate = startOfDayBrasilia(startDateBase).toISOString();
 
     const taskLike: TaskLike = {
       id: item.id,
@@ -185,9 +185,9 @@ export async function GET(
       startDate,
     };
 
-    // helper: diz se um registro já é "canônico" (dataReferencia == início do dia Fortaleza)
+    // helper: diz se um registro já é "canônico" (dataReferencia == início do dia Brasília)
     const isCanonical = (dt: Date) =>
-      dt.getTime() === startOfDayFortaleza(dt).getTime();
+      dt.getTime() === startOfDayBrasilia(dt).getTime();
 
     // ✅ NORMALIZA histórico pra "1 por dia"
     // regra:
@@ -199,7 +199,7 @@ export async function GET(
     >();
 
     for (const h of item.historico || []) {
-      const dayRef = startOfDayFortaleza(h.dataReferencia);
+      const dayRef = startOfDayBrasilia(h.dataReferencia);
       const dayKey = dayRef.toISOString().slice(0, 10);
 
       const candidate = {
@@ -246,7 +246,7 @@ export async function GET(
         observacoes: raw.observacoes ?? null,
       }));
 
-    // ✅ status do dia calculado com base no "dia Fortaleza"
+    // ✅ status do dia calculado com base no "dia Brasília"
     let statusHoje = getStatusNoDia(taskLike, historicoLike, hoje);
 
     // ✅ sua regra: se já tem evento HOJE no histórico, ele manda no status
@@ -412,12 +412,12 @@ export async function PATCH(
         error: "Atividade não encontrada ou fora do escopo.",
       });
 
-    // ---------- HISTÓRICO (1 por dia - Fortaleza) ----------
+    // ---------- HISTÓRICO (1 por dia - Brasília) ----------
     const histStatus = toHistoricoStatus(b.status);
     if (b.dataReferencia || histStatus || b.completedAt) {
-      // normaliza SEMPRE pro começo do dia (Fortaleza)
+      // normaliza SEMPRE pro começo do dia (Brasília)
       const base = b.dataReferencia ? new Date(b.dataReferencia) : new Date();
-      const dataRef = startOfDayFortaleza(base); // tem que devolver 03:00Z do dia
+      const dataRef = startOfDayBrasilia(base); // tem que devolver 03:00Z do dia
 
       const hist = await prisma.atividadeHistorico.upsert({
         where: {

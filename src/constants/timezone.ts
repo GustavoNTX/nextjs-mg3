@@ -1,8 +1,8 @@
 // src/constants/timezone.ts
 // Constante unificada de timezone para todo o projeto
 
-export const APP_TIMEZONE = "America/Fortaleza";
-export const APP_TIMEZONE_OFFSET = "-03:00"; // Fortaleza não tem DST
+export const APP_TIMEZONE = "America/Sao_Paulo";
+export const APP_TIMEZONE_OFFSET = "-03:00"; // Brasília (Brasil não tem mais DST desde 2019)
 
 /**
  * Retorna o início do dia (00:00:00) no timezone da aplicação
@@ -34,6 +34,6 @@ export function todayISOAppTimezone(): string {
  * Adiciona dias a uma data mantendo o timezone da aplicação
  */
 export function addDaysAppTimezone(date: Date, days: number): Date {
-  // Fortaleza não tem DST, então 24h funciona ok
+  // Brasil não tem mais DST desde 2019, então 24h funciona ok
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }

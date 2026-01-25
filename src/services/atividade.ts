@@ -6,21 +6,21 @@ import {
   addMonths,
   addYears,
   proximoDiaUtil,
-  startOfDayFortaleza,
+  startOfDayBrasilia,
 } from "@/utils/date-utils";
 import { HistoricoStatus } from "@prisma/client";
 
 /**
  * Calcula a próxima data de execução a partir de uma data base
  * usando a frequência do molde.
- * IMPORTANTE: Usa timezone de Fortaleza para consistência com o resto do sistema.
+ * IMPORTANTE: Usa timezone de Brasília para consistência com o resto do sistema.
  */
 export function calcularProximaData(
   base: Date,
   frequencia: Frequencia
 ): Date | null {
-  // Usar timezone de Fortaleza para consistência
-  const dataBase = startOfDayFortaleza(base);
+  // Usar timezone de Brasília para consistência
+  const dataBase = startOfDayBrasilia(base);
 
   switch (frequencia) {
     case "Não se repete":

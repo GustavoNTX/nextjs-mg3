@@ -32,6 +32,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
+import { startOfDayBrasilia } from "@/utils/date-utils";
 
 /* ---------- helpers locais (status, data, recorrência) ---------- */
 
@@ -51,6 +52,10 @@ const normalizeDate = (d) => {
 };
 
 const todayDate = () => normalizeDate(new Date());
+
+function dayRefBrasiliaISO() {
+  return startOfDayBrasilia(new Date()).toISOString(); // 03:00Z (meia-noite Brasília)
+}
 
 /** mapeia código de status lógico -> label */
 const statusLabelOf = (code) => {
@@ -263,9 +268,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
   const statusColor = statusColorOf(st);
   const hasPhoto = Boolean(activity.photoUrl);
 
-  const toggleButtonLabel =
-    st === "EM_ANDAMENTO" ? "Concluir atividade" : "Iniciar atividade";
-
   return (
     <CardContainer variant="outlined">
       <Grid
@@ -388,14 +390,26 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         sx={{ mt: 2 }}
         justifyContent="flex-end"
       >
-        <Button
-          size="small"
-          variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
-          color={st === "EM_ANDAMENTO" ? "success" : "primary"}
-          onClick={() => onToggleStatus?.(activity)}
-        >
-          {toggleButtonLabel}
-        </Button>
+        {(st === "PROXIMAS" || st === "PENDENTE") && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="primary"
+            onClick={() => onToggleStatus?.(activity)}
+          >
+            Iniciar atividade
+          </Button>
+        )}
+        {st === "EM_ANDAMENTO" && (
+          <Button
+            size="small"
+            variant="contained"
+            color="success"
+            onClick={() => onToggleStatus?.(activity)}
+          >
+            Concluir atividade
+          </Button>
+        )}
       </Stack>
     </CardContainer>
   );
@@ -524,13 +538,13 @@ const ListaAtividades = ({ onEdit }) => {
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
-        const hoje = todayDate();
         const now = new Date();
+        const dataRefISO = dayRefBrasiliaISO();
 
-        // 🔥 SEMPRE cria/atualiza histórico para HOJE, independente da frequência
+        // SEMPRE cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
-          dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
+          dataReferencia: dataRefISO, // Data canônica de HOJE (timezone Brasília)
           completedAt: null,
         };
 
