@@ -13,7 +13,7 @@ import { useAtividadesOptional } from "@/contexts/AtividadesContext";
 
 export default function HeaderDesktop({
   title, search, setSearch, filtro, setFiltro, sidebarExpanded,
-  selectedCondomino, onSair,
+  selectedCondomino, onSair, showTitleOnly = false,
 }) {
   const theme = useTheme();
   const ui = useCondominoUIOptional();
@@ -28,11 +28,11 @@ export default function HeaderDesktop({
 
   // Preferir contexto, mas cair para props caso não exista provider
   const effectiveSearch = ui?.search ?? search ?? "";
-  const effectiveSetSearch = ui?.setSearch ?? setSearch ?? (() => {});
+  const effectiveSetSearch = ui?.setSearch ?? setSearch ?? (() => { });
   const effectiveFiltro = ui?.filtro ?? filtro ?? "Todos";
-  const effectiveSetFiltro = ui?.setFiltro ?? setFiltro ?? (() => {});
+  const effectiveSetFiltro = ui?.setFiltro ?? setFiltro ?? (() => { });
   const selected = ui?.selected ?? selectedCondomino ?? null;
-  const handleSair = ui?.sair ?? onSair ?? (() => {});
+  const handleSair = ui?.sair ?? onSair ?? (() => { });
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -51,6 +51,42 @@ export default function HeaderDesktop({
   }, [loadNotifications]);
 
   const handleCloseNotifications = () => setNotificationsOpen(false);
+
+  if (showTitleOnly) {
+    return (
+      <AppBar
+        position="fixed"
+        sx={{
+          left: `${currentSidebarWidth}px`,
+          width: `calc(100% - ${currentSidebarWidth}px)`,
+          height: 64,
+          px: 4,
+          zIndex: theme.zIndex.drawer + 1,
+          backgroundColor: theme.palette.background.paper,
+          borderBottom: "1px solid",
+          borderColor: theme.palette.divider,
+          transition: theme.transitions.create(["width", "left"], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+        }}
+      >
+        <Toolbar disableGutters sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{
+              color: "primary.main",
+              textAlign: "center",
+              flexGrow: 1
+            }}
+          >
+            {title}
+          </Typography>
+        </Toolbar>
+      </AppBar>
+    );
+  }
 
   return (
     <>
