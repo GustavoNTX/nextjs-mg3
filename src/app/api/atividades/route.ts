@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { startOfDayFortaleza, addDaysFortaleza } from "@/utils/date-utils";
+import { startOfDayBrasilia, addDaysBrasilia } from "@/utils/date-utils";
 import { APP_TIMEZONE, APP_TIMEZONE_OFFSET } from "@/constants/timezone";
 
 export const revalidate = 0;
@@ -117,7 +117,7 @@ async function assertCondominioDaEmpresa(
     throw json(404, { error: "Condomínio não encontrado na sua empresa" });
 }
 
-/** -------- datas (TZ Fortaleza) -------- */
+/** -------- datas (TZ Brasília) -------- */
 // Funções importadas de @/utils/date-utils e @/constants/timezone
 
 /** -------- GET (lista) -------- */
@@ -145,9 +145,9 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : null;
     const leadDays = Number(searchParams.get("leadDays") || "7");
 
-    // ✅ HOJE / AMANHÃ canônico (Fortaleza)
-    const hoje = startOfDayFortaleza(new Date());         // => 03:00Z
-    const amanha = addDaysFortaleza(hoje, 1);             // => 03:00Z do dia seguinte
+    // ✅ HOJE / AMANHÃ canônico (Brasília)
+    const hoje = startOfDayBrasilia(new Date());         // => 03:00Z
+    const amanha = addDaysBrasilia(hoje, 1);             // => 03:00Z do dia seguinte
 
     // ---- status filter no WHERE (se você quiser manter)
     let historicoWhere: any | undefined = undefined;
@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
       case "HISTÓRICO":
         historicoWhere = {
           status: { in: ["FEITO", "PULADO"] },
-          dataReferencia: { gte: addDaysFortaleza(hoje, -90), lt: amanha },
+          dataReferencia: { gte: addDaysBrasilia(hoje, -90), lt: amanha },
         };
         break;
 
@@ -268,6 +268,7 @@ const createSchema = z
     observacoes: z.string().optional().nullable(),
     photoUrl: z.string().url().optional().nullable(),
     expectedDate: dateFlex().optional(),
+    completionDate: dateFlex().optional(),
     tags: z.array(z.string()).optional(),
     budgetStatus: z.string().optional(),
     costEstimate: z
@@ -332,6 +333,7 @@ export async function POST(req: NextRequest) {
         tipoAtividade: data.tipoAtividade ?? undefined,
         observacoes: data.observacoes ?? undefined,
         expectedDate: data.expectedDate ?? undefined,
+        completionDate: data.completionDate ?? undefined,
         tags: data.tags ?? [],
         empresaId: authEmpresaId,
         condominioId: data.condominioId,
@@ -343,14 +345,14 @@ export async function POST(req: NextRequest) {
     });
 
     // CRIAÇÃO AUTOMÁTICA DO HISTÓRICO
-    // Usar início do dia (Fortaleza) para comparação correta
-    const hojeInicio = startOfDayFortaleza(new Date());
-    const amanha = addDaysFortaleza(hojeInicio, 1);
+    // Usar início do dia (Brasília) para comparação correta
+    const hojeInicio = startOfDayBrasilia(new Date());
+    const amanha = addDaysBrasilia(hojeInicio, 1);
 
     let dataRef: Date;
     if (created.expectedDate) {
       // Normalizar para início do dia no timezone correto
-      dataRef = startOfDayFortaleza(new Date(created.expectedDate));
+      dataRef = startOfDayBrasilia(new Date(created.expectedDate));
     } else {
       dataRef = hojeInicio;
     }

@@ -48,6 +48,7 @@ function sanitizeActivityForApi(raw) {
     tipoAtividade: raw.tipoAtividade || "Preventiva",
     observacoes: raw.observacoes || "",
     expectedDate: raw.expectedDate || null, // string YYYY-MM-DD (back converte pra Date)
+    completionDate: raw.completionDate || null, // data de finalização do ciclo recorrente
     condominioId: raw.condominioId,
     // empresaId geralmente é anexado no onSave (lado da página)
   };
@@ -121,6 +122,7 @@ export default function AddAtividadeDialog({
     equipe: "Equipe interna",
     tipoAtividade: "Preventiva",
     expectedDate: "", // YYYY-MM-DD
+    completionDate: "", // YYYY-MM-DD - data de finalização do ciclo
     photo: null,
   });
   const [errors, setErrors] = useState({});
@@ -152,6 +154,7 @@ export default function AddAtividadeDialog({
       equipe: d.equipe || "Equipe interna",
       tipoAtividade: d.tipoAtividade || "Preventiva",
       expectedDate: d.expectedDate ? formatYMD(d.expectedDate) : "",
+      completionDate: d.completionDate ? formatYMD(d.completionDate) : "",
       photo: null,
     });
     setErrors({});
@@ -187,6 +190,10 @@ export default function AddAtividadeDialog({
 
   const handleExpectedDate = (e) => {
     setUi((p) => ({ ...p, expectedDate: e.target.value || "" }));
+  };
+
+  const handleCompletionDate = (e) => {
+    setUi((p) => ({ ...p, completionDate: e.target.value || "" }));
   };
 
   const validate = useCallback(() => {
@@ -232,6 +239,7 @@ export default function AddAtividadeDialog({
       tipoAtividade: ui.tipoAtividade,
       observacoes: obsRef.current?.value || "",
       expectedDate: ui.expectedDate || null, // YYYY-MM-DD ou null
+      completionDate: ui.completionDate || null, // YYYY-MM-DD ou null
       condominioId,
     };
 
@@ -462,6 +470,18 @@ export default function AddAtividadeDialog({
                     onChange={handleExpectedDate}
                     InputLabelProps={{ shrink: true }}
                     helperText="Primeira data de referência para o cronograma"
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Data de finalização"
+                    type="date"
+                    value={ui.completionDate}
+                    onChange={handleCompletionDate}
+                    InputLabelProps={{ shrink: true }}
+                    helperText="Opcional: quando o ciclo recorrente deve parar"
                   />
                 </Grid>
 

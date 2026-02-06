@@ -30,6 +30,7 @@ export interface TaskLike {
   frequency: string;      // precisa bater com FREQUENCIAS
   startDate: string;      // expectedDate ou createdAt
   buildingDeliveryDate?: string; // opcional, pra regra especial do edifício
+  completionDate?: string; // opcional, data de finalização do ciclo recorrente
 }
 
 export interface HistoricoLike {
@@ -290,12 +291,20 @@ export const isTaskDueToday = (
   task: TaskLike,
   referenceDate: Date = new Date(),
 ): boolean => {
-  const { frequency, startDate: startDateInput, buildingDeliveryDate } = task;
+  const { frequency, startDate: startDateInput, buildingDeliveryDate, completionDate } = task;
   const startDate = parseDate(startDateInput);
   const targetDate = normalizeDate(referenceDate);
 
   if (!startDate || !frequency) {
     return false;
+  }
+
+  // Verifica se o ciclo já encerrou (completionDate)
+  if (completionDate) {
+    const endDate = parseDate(completionDate);
+    if (endDate && targetDate > endDate) {
+      return false;
+    }
   }
 
   switch (frequency) {
@@ -351,12 +360,20 @@ export const getNextDueDate = (
   task: TaskLike,
   referenceDate: Date = new Date(),
 ): Date | null => {
-  const { frequency, startDate: startDateInput, buildingDeliveryDate } = task;
+  const { frequency, startDate: startDateInput, buildingDeliveryDate, completionDate } = task;
   const startDate = parseDate(startDateInput);
   const targetDate = normalizeDate(referenceDate);
 
   if (!startDate || !frequency) {
     return null;
+  }
+
+  // Verifica se o ciclo já encerrou (completionDate)
+  if (completionDate) {
+    const endDate = parseDate(completionDate);
+    if (endDate && targetDate > endDate) {
+      return null;
+    }
   }
 
   if (isTaskDueToday(task, targetDate)) {
@@ -495,8 +512,16 @@ export const buildCalendar = (
   to: Date,
 ): DiaCalendario[] => {
   const inicio = normalizeDate(from);
-  const fim = normalizeDate(to);
+  let fim = normalizeDate(to);
   const dias: DiaCalendario[] = [];
+
+  // Limita o calendário até a data de finalização do ciclo, se definida
+  if (task.completionDate) {
+    const endDate = parseDate(task.completionDate);
+    if (endDate && endDate < fim) {
+      fim = endDate;
+    }
+  }
 
   for (
     let d = new Date(inicio);

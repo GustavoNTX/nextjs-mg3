@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Box,
   Typography,
@@ -27,10 +28,13 @@ import BuildIcon from "@mui/icons-material/Build";
 import ImageIcon from "@mui/icons-material/Image";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import CloseIcon from "@mui/icons-material/Close";
+import FilterListIcon from "@mui/icons-material/FilterList";
 
 import { useAtividades } from "@/contexts/AtividadesContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
 import { adaptAtividadesToTasks } from "@/utils/atividadeDate";
+import { startOfDayBrasilia } from "@/utils/date-utils";
 
 /* ---------- helpers locais (status, data, recorrência) ---------- */
 
@@ -50,6 +54,10 @@ const normalizeDate = (d) => {
 };
 
 const todayDate = () => normalizeDate(new Date());
+
+function dayRefBrasiliaISO() {
+  return startOfDayBrasilia(new Date()).toISOString(); // 03:00Z (meia-noite Brasília)
+}
 
 /** mapeia código de status lógico -> label */
 const statusLabelOf = (code) => {
@@ -278,7 +286,6 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
   const statusText = statusLabelOf(st);
   const statusColor = statusColorOf(st);
   const hasPhoto = Boolean(activity.photoUrl);
-
   const toggleButtonLabel =
     st === "EM_ANDAMENTO" ? "Concluir atividade" : "Iniciar atividade";
 
@@ -420,7 +427,7 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
         justifyContent="flex-end"
       >
         <Button
-          size="medium" // Aumentado para médio para melhor toque
+          size="medium"
           variant={st === "EM_ANDAMENTO" ? "contained" : "outlined"}
           color={st === "EM_ANDAMENTO" ? "success" : "primary"}
           onClick={() => onToggleStatus?.(activity)}
@@ -434,9 +441,19 @@ const ActivityCard = ({ activity, onToggleStatus, onDelete, onEdit }) => {
 };
 
 /* ---------- componente principal ---------- */
-const ListaAtividades = ({ onEdit }) => {
+const ListaAtividades = ({ onEdit, highlightAtividadeId }) => {
   const theme = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
   const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // Modo de filtro: quando vem de uma notificação com atividadeId específico
+  const isFilterMode = Boolean(highlightAtividadeId);
+
+  // Função para limpar o filtro de atividade específica
+  const handleClearFilter = useCallback(() => {
+    router.replace(pathname);
+  }, [router, pathname]);
 
   const {
     items,
@@ -508,13 +525,13 @@ const ListaAtividades = ({ onEdit }) => {
   const handleToggleStatus = useCallback(
     async (activity) => {
       try {
-        const hoje = todayDate();
         const now = new Date();
+        const dataRefISO = dayRefBrasiliaISO();
 
         // SEMPRE cria/atualiza histórico para HOJE, independente da frequência
         const patch = {
           status: "EM_ANDAMENTO", // Padrão: vai para EM_ANDAMENTO
-          dataReferencia: hoje.toISOString().split("T")[0], // Data de HOJE
+          dataReferencia: dataRefISO, // Data canônica de HOJE (timezone Brasília)
           completedAt: null,
         };
 
@@ -575,11 +592,48 @@ const ListaAtividades = ({ onEdit }) => {
   }, [items]);
 
   const filteredItems = useMemo(() => {
+    // Se há filtro por atividade específica (vindo de notificação), mostrar apenas ela
+    if (highlightAtividadeId) {
+      return processedItems.filter((a) => a.id === highlightAtividadeId);
+    }
     return processedItems.filter((a) => inferStatus(a) === activeKey);
-  }, [processedItems, activeKey]);
+  }, [processedItems, activeKey, highlightAtividadeId]);
 
   return (
     <Box>
+      {/* Banner de filtro ativo */}
+      {isFilterMode && (
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 2,
+            p: 2,
+            borderRadius: 2,
+            bgcolor: alpha(theme.palette.info.main, 0.1),
+            border: `1px solid ${alpha(theme.palette.info.main, 0.3)}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <FilterListIcon sx={{ color: theme.palette.info.main }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Exibindo atividade da notificação
+            </Typography>
+          </Stack>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<CloseIcon />}
+            onClick={handleClearFilter}
+            sx={{ borderRadius: 2 }}
+          >
+            Ver todas
+          </Button>
+        </Paper>
+      )}
+
       {/* Abas */}
       <TabWrapper>
         {TABS.map((t) => (

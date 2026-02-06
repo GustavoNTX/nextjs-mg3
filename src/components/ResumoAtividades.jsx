@@ -25,11 +25,11 @@ import {
   inferStatus,
   statusLabel,
   statusColor,
-  startOfDayFortaleza,
+  startOfDayBrasilia,
   formatDate,
   isTaskDueToday,
   getNextDueDate,
-} from "@/utils/atividadeStatus"; // status + TZ Fortaleza
+} from "@/utils/atividadeStatus"; // status + TZ Brasília
 
 /* ===============================================================
    Analytics local (sem tocar no backend)
@@ -52,7 +52,7 @@ function isRecurringLabel(freq) {
 }
 
 function computeResumo(atividades, { leadDays = 1 } = {}) {
-  const today = startOfDayFortaleza(new Date());
+  const today = startOfDayBrasilia(new Date());
 
   // 1) Por STATUS
   const porStatus = { PROXIMAS: 0, EM_ANDAMENTO: 0, PENDENTE: 0, HISTORICO: 0 };
@@ -359,5 +359,5 @@ Como usar:
 
 2) leadDays controla o pré-alerta (ex.: 3 para 72h).
 
-3) A lógica é idempotente e usa os utilitários existentes (recorrência, status e TZ Fortaleza).
+3) A lógica é idempotente e usa os utilitários existentes (recorrência, status e TZ Brasília).
 =============================================================== */

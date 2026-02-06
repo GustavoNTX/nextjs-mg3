@@ -12,12 +12,9 @@ import React, {
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStatusNoDia } from "@/utils/atividadeStatus";
+import { startOfDayBrasilia, todayISOBrasilia } from "@/utils/date-utils";
 
 const AtividadesContext = createContext(null);
-
-// Timezone unificado para todo o projeto
-const APP_TIMEZONE = "America/Fortaleza";
-const APP_TIMEZONE_OFFSET = "-03:00";
 
 // endpoints comuns p/ descobrir empresa do usuário
 const EMPRESA_ENDPOINTS = ["/api/empresas/minha"];
@@ -28,32 +25,6 @@ const normalizeFilters = (value) => ({
   prioridade: value?.prioridade ?? null,
   status: value?.status ?? null,
 });
-
-/**
- * Retorna o início do dia (00:00:00) no timezone de Fortaleza
- */
-const startOfDayFortaleza = (date = new Date()) => {
-  const ymd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-
-  return new Date(`${ymd}T00:00:00${APP_TIMEZONE_OFFSET}`);
-};
-
-/**
- * Retorna a data atual no formato YYYY-MM-DD no timezone de Fortaleza
- */
-const todayISOFortaleza = () => {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-};
 
 export function AtividadesProvider({ children }) {
   const { fetchWithAuth, user } = useAuth();
@@ -513,7 +484,7 @@ export function AtividadesProvider({ children }) {
       const map = readDismissMap();
       const scope = scopeKey();
       const scoped = map[scope] || {};
-      scoped[key] = untilISO || todayISOFortaleza();
+      scoped[key] = untilISO || todayISOBrasilia();
       map[scope] = scoped;
       writeDismissMap(map);
       setNotifications((old) =>
@@ -546,7 +517,7 @@ export function AtividadesProvider({ children }) {
         }`;
         const map = readDismissMap();
         const dismissed = map[scope] || {};
-        const todayISO = todayISOFortaleza();
+        const todayISO = todayISOBrasilia();
         const filtered = arr.filter((n) => {
           const k = `${n.atividadeId}|${n.when}|${n.dueDateISO}`;
           const until = dismissed[k];
@@ -567,13 +538,13 @@ export function AtividadesProvider({ children }) {
     if (empresaId && condominioId) loadNotifications();
   }, [empresaId, condominioId, loadNotifications]);
 
-  // virada do dia (TZ Fortaleza) - recarrega notificações à meia-noite
+  // virada do dia (TZ Brasília) - recarrega notificações à meia-noite
   useEffect(() => {
     let tm;
     const arm = () => {
-      // Calcular tempo até meia-noite em Fortaleza
+      // Calcular tempo até meia-noite em Brasília
       const now = new Date();
-      const todayStart = startOfDayFortaleza(now);
+      const todayStart = startOfDayBrasilia(now);
       const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
       const msUntilMidnight = Math.max(tomorrowStart.getTime() - now.getTime() + 500, 60_000);
 
@@ -590,7 +561,7 @@ export function AtividadesProvider({ children }) {
 
   const inferStatus = (it) => {
     try {
-      const hojeISO = todayISOFortaleza();
+      const hojeISO = todayISOBrasilia();
       const hoje = new Date(hojeISO);
 
       const task = {
@@ -658,8 +629,8 @@ export function AtividadesProvider({ children }) {
   const notifStats = useMemo(() => {
     const s = { pre: 0, due: 0, overdue: 0, total: 0, naoFeitasHoje: 0 };
 
-    // Obter data de hoje no formato ISO (Fortaleza)
-    const hojeISO = todayISOFortaleza();
+    // Obter data de hoje no formato ISO (Brasília)
+    const hojeISO = todayISOBrasilia();
 
     for (const n of notifications) {
       if (n.when === "pre") s.pre++;
