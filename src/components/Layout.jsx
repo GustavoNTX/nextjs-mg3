@@ -38,6 +38,9 @@ export default function Layout({ children, showTitleOnly = false }) {
       case "/config/gerais":
         setPageTitle("Configurações Gerais");
         break;
+      case "/relatorios":
+        setPageTitle("Relatórios");
+        break;
       // Adicione outras rotas e seus respectivos títulos aqui
       default:
         setPageTitle("Início"); // Título padrão caso a rota não seja encontrada
@@ -55,6 +58,7 @@ export default function Layout({ children, showTitleOnly = false }) {
     const titleOnlyRoutes = [
       "/configuracoes",
       "/config/gerais",
+      "/relatorios",
       // Adicione outras rotas que precisam apenas do título
     ];
     return titleOnlyRoutes.includes(pathname);
