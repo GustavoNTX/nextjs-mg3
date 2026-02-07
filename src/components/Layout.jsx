@@ -11,7 +11,7 @@ import Header from "./Responsive/Header";
 const sidebarWidth = 60;
 const sidebarExpandedWidth = 240;
 
-export default function Layout({ children }) {
+export default function Layout({ children, showTitleOnly = false }) {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
   const pathname = usePathname(); // Hook para obter a rota atual
@@ -35,6 +35,12 @@ export default function Layout({ children }) {
       case "/configuracoes":
         setPageTitle("Configurações");
         break;
+      case "/config/gerais":
+        setPageTitle("Configurações Gerais");
+        break;
+      case "/relatorios":
+        setPageTitle("Relatórios");
+        break;
       // Adicione outras rotas e seus respectivos títulos aqui
       default:
         setPageTitle("Início"); // Título padrão caso a rota não seja encontrada
@@ -45,6 +51,18 @@ export default function Layout({ children }) {
   const handleDrawerToggle = () => setMobileOpen((o) => !o);
   const handleSidebarExpand = () => setSidebarExpanded(true);
   const handleSidebarCollapse = () => setSidebarExpanded(false);
+
+  // Função para determinar se deve mostrar apenas o título
+  const shouldShowTitleOnly = () => {
+    // Adicione aqui as rotas que devem mostrar apenas o título
+    const titleOnlyRoutes = [
+      "/configuracoes",
+      "/config/gerais",
+      "/relatorios",
+      // Adicione outras rotas que precisam apenas do título
+    ];
+    return titleOnlyRoutes.includes(pathname);
+  };
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -73,7 +91,7 @@ export default function Layout({ children }) {
           }),
         }}
       >
-        {/* O Header recebe o título dinâmico como prop */}
+        {/* O Header recebe o título dinâmico e a prop showTitleOnly */}
         <Header
           title={pageTitle}
           filtro={filtro}
@@ -82,6 +100,7 @@ export default function Layout({ children }) {
           setSearch={setSearch}
           onMenuClick={handleDrawerToggle}
           sidebarExpanded={sidebarExpanded}
+          showTitleOnly={shouldShowTitleOnly()}
         />
 
         {/* Espaçador para a AppBar fixa SOMENTE no desktop */}
